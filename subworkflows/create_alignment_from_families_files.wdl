@@ -13,6 +13,7 @@ workflow CreateAlignmentFromFamilies {
         Boolean gatk_mchap
         Boolean pair_end
         Int chunk_size
+        Boolean run_merge_bams
     }
 
     call chunk_lists.SepareChunksFastqString {
@@ -43,16 +44,17 @@ workflow CreateAlignmentFromFamilies {
     }
 
     # Store for MCHap
-    call utils.MergeBams {
+    if (run_merge_bams) {
+        call utils.MergeBams {
             input:
                 bam_files = flatten(RunBwaAlignment.bam)
+        }
     }
-    
 
     output {
         Array[File] bam = flatten(RunBwaAlignment.bam)
         Array[File] bai = flatten(RunBwaAlignment.bai)
         Array[Array[File]] dup_metrics = RunBwaAlignment.dup_metrics
-        File merged_bam = MergeBams.merged_bam
+        File? merged_bam = MergeBams.merged_bam
     }
 }

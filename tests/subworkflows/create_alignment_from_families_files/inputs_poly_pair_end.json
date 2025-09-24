@@ -1,11 +1,12 @@
 {
-    "CreateAlignmentFromFamilies.max_cores": 2,
-    "CreateAlignmentFromFamilies.rm_dupli": false,
-    "CreateAlignmentFromFamilies.gatk_mchap": false,
-    "CreateAlignmentFromFamilies.families_info": "tests/data/polyploid/fastq/pair_end/samples_info.txt",
-    "CreateAlignmentFromFamilies.chunk_size": 2,
-    "CreateAlignmentFromFamilies.pair_end": false,
-    "CreateAlignmentFromFamilies.references": {
+    "max_cores": 2,
+    "rm_dupli": true,
+    "gatk_mchap": false,
+    "run_merge_bams": false,
+    "families_info": "tests/data/polyploid/fastq/pair_end/samples_info.txt",
+    "chunk_size": 2,
+    "pair_end": true,
+    "references": {
       "ref_fasta": "tests/data/polyploid/RchinensisV1.0/Chr04_sub.fasta",
       "ref_dict": "tests/data/polyploid/RchinensisV1.0/Chr04_sub.dict",
       "ref_ann": "tests/data/polyploid/RchinensisV1.0/Chr04_sub.fasta.ann",

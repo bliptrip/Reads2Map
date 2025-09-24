@@ -25,15 +25,19 @@ task RunBwaAlignment {
     mkdir tmp
 
     reads1_list=( ~{sep=" " reads1} )
-    reads2_list=( ~{sep=" " reads2} )
+    # Handle optional reads2 array
+    if [ -z "~{sep=' ' reads2}" ]; then
+      reads2_list=()
+    else
+      reads2_list=( ~{sep=" " reads2} )
+    fi
     lib_list=( ~{sep=" " libraries} )
     sampleName_list=( ~{sep=" " sampleName})
     BAMS=()
-    for index in ${!reads1_list[*]}; do
+    for index in ${!reads1_list[@]}; do
       echo "${reads1_list[$index]} is in ${lib_list[$index]}"
       
-      if "~{pair_end}" == "true"
-      then 
+      if [ "~{pair_end}" = "true" ]; then 
         reads=( "${reads1_list[$index]} ${reads2_list[$index]}" ) 
       else 
         reads=( "${reads1_list[$index]}" ) 
@@ -54,13 +58,13 @@ task RunBwaAlignment {
     sampleName_unique=($(echo "${sampleName_list[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
 
     # Check if there are replicated samples
-    for index in ${!sampleName_unique[*]}; do
+    for index in ${!sampleName_unique[@]}; do
       NFILES=($(echo ${sampleName_unique[$index]}.*.bam))
       echo ${NFILES[*]}
       echo ${#NFILES[@]}
       REP=()
       if [ "${#NFILES[@]}" -gt 1 ]; then
-        for file in ${!NFILES[*]}; do
+        for file in ${!NFILES[@]}; do
           REP+=("I=${NFILES[$file]}")
         done
         echo ${REP[*]}
@@ -69,6 +73,10 @@ task RunBwaAlignment {
           O=${sampleName_unique[$index]}.sorted_temp.bam \
           CREATE_INDEX=true \
           TMP_DIR=./tmp
+        # Remove merged input BAMs and their indices
+        for bamfile in ${NFILES[@]}; do
+          rm -f "$bamfile" "${bamfile}.bai"
+        done
       else
         mv ${sampleName_unique[$index]}.*.bam ${sampleName_unique[$index]}.sorted_temp.bam
         mv ${sampleName_unique[$index]}.*.bai ${sampleName_unique[$index]}.sorted_temp.bai
@@ -79,25 +87,32 @@ task RunBwaAlignment {
             I="${sampleName_unique[$index]}.sorted_temp.bam" \
             O="${sampleName_unique[$index]}.sorted.bam" \
             CLEAR_DT="false" \
-            METRICS_FILE= "${sampleName_unique[$index]}_dup_metrics.txt" \
-            REMOVE_SEQUENCING_DUPLICATES=true \
+            METRICS_FILE="${sampleName_unique[$index]}_dup_metrics.txt" \
+            REMOVE_DUPLICATES=true \
             CREATE_INDEX=true
+        rm -f "${sampleName_unique[$index]}.sorted_temp.bam" "${sampleName_unique[$index]}.sorted_temp.bai"
+        mv "${sampleName_unique[$index]}.sorted.bam" "${sampleName_unique[$index]}.sorted.merged.bam"
+        mv "${sampleName_unique[$index]}.sorted.bai" "${sampleName_unique[$index]}.sorted.merged.bai"
       else
         java -jar /usr/gitc/picard.jar MarkDuplicates \
             I="${sampleName_unique[$index]}.sorted_temp.bam" \
             O="${sampleName_unique[$index]}.sorted_temp2.bam" \
             CLEAR_DT="false" \
-            METRICS_FILE= "${sampleName_unique[$index]}_dup_metrics.txt"
-
-        mv "${sampleName_unique[$index]}.sorted_temp.bam" "${sampleName_unique[$index]}.sorted.merged.bam"
-        mv "${sampleName_unique[$index]}.sorted_temp.bai" "${sampleName_unique[$index]}.sorted.merged.bai"
+            METRICS_FILE="${sampleName_unique[$index]}_dup_metrics.txt"
+        rm -f "${sampleName_unique[$index]}.sorted_temp.bam" "${sampleName_unique[$index]}.sorted_temp.bai"
+        mv "${sampleName_unique[$index]}.sorted_temp2.bam" "${sampleName_unique[$index]}.sorted.merged.bam"
+        # If MarkDuplicates creates an index, move it
+        if [ -f "${sampleName_unique[$index]}.sorted_temp2.bai" ]; then
+          mv "${sampleName_unique[$index]}.sorted_temp2.bai" "${sampleName_unique[$index]}.sorted.merged.bai"
+        fi
       fi
 
       # Filter by MapQ
       samtools view -bq 10  "${sampleName_unique[$index]}.sorted.merged.bam" >  "${sampleName_unique[$index]}.sorted.merged.filtered.bam"
       samtools index "${sampleName_unique[$index]}.sorted.merged.filtered.bam"
       mv "${sampleName_unique[$index]}.sorted.merged.filtered.bam.bai" "${sampleName_unique[$index]}.sorted.merged.filtered.bai"
-
+      # Remove unfiltered BAMs and indices
+      rm -f "${sampleName_unique[$index]}.sorted.merged.bam" "${sampleName_unique[$index]}.sorted.merged.bai"
     done
   >>>
 
@@ -118,7 +133,7 @@ task RunBwaAlignment {
   meta {
       author: "Cristiane Taniguti"
       email: "chtaniguti@tamu.edu"
-      description: "Run [BWA](http://bio-bwa.sourceforge.net/) MEM alignment."
+      description: "Run BWA MEM alignment for one or more samples, supporting multiple libraries per sample. This task merges BAM files from different libraries, marks duplicates, and filters alignments by mapping quality. It is compatible with both single-end and paired-end reads, and outputs filtered BAMs, their indices, and duplicate metrics for downstream analysis."
   }
 
   output {
