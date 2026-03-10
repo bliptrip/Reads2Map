@@ -4,6 +4,6 @@ struct Specifications {
       String enzyme
       String? enzyme2
       File raw_dict
-      File? barcodes
+      Array[File] key_files
       String adapter
 }

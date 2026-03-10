@@ -520,6 +520,42 @@ task MergeBams{
     }
 }
 
+task GenerateBarcodes {
+  input {
+    Array[File] key_files
+  }
+
+  Int disk_size = ceil(size(key_files, "GiB") * 2 + 1)
+  Int memory_size = 512
+
+  command <<<
+    key_files=(~{sep=" " key_files})
+    for key_file in "${key_files[@]}"; do
+      tail -n +2 "$key_file" | awk -F'\t' '{print $3 "\t" $4}' >> barcodes.tsv
+    done
+  >>>
+
+  runtime {
+    docker: "ubuntu:20.04"
+    singularity: "docker://ubuntu:20.04"
+    cpu: 1
+    # Cloud
+    memory: "~{memory_size} MiB"
+    disks: "local-disk " + disk_size + " HDD"
+    # Slurm
+    job_name: "GenerateBarcodes"
+    mem: "~{memory_size}M"
+    time: 1
+  }
+
+  meta {
+    description: "Concatenates barcode-to-sample mappings from one or more GBS key files (tab-delimited, columns: Flowcell Lane Barcode DNASample ...) into a unified two-column TSV (barcode TAB sample) for use with process_radtags."
+  }
+
+  output {
+    File barcodes = "barcodes.tsv"
+  }
+}
 
 task TarFiles {
   input {
