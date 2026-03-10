@@ -13,18 +13,16 @@ workflow PreprocessingReads{
       Specifications spec
     }
 
-    Array[File] fq_files = read_lines(spec.raw_dict)
-
     call utils.GenerateBarcodes {
       input:
-        key_files = spec.key_files
+        key_files = spec.barcode_key_files
     }
 
     call stacks.ProcessRadTags {
       input:
         enzyme = spec.enzyme,
         enzyme2 = spec.enzyme2,
-        fq_files = fq_files,
+        fq_files = spec.fastq_files,
         barcodes = GenerateBarcodes.barcodes
     }
 
