@@ -1,11 +1,11 @@
 version 1.0
 
 
-import "../../structs/preprocessing_reads_structs.wdl"
+import "structs/preprocessing_reads_structs.wdl"
 
-import "../../tasks/stacks.wdl"
-import "../../tasks/cutadapt.wdl"
-import "../../tasks/utils.wdl"
+import "tasks/stacks.wdl"
+import "tasks/cutadapt.wdl"
+import "tasks/utils.wdl"
 
 
 workflow PreprocessingReads{
@@ -40,7 +40,14 @@ workflow PreprocessingReads{
         sequences = RemoveAdapt.trim_seq
     }
 
+    call utils.GenerateSamplesInfo {
+      input:
+        trimmed_fastqs = RemoveAdapt.trim_seq,
+        key_files      = spec.barcode_key_files
+    }
+
     output {
-      File results = TarFiles.results
+      File results      = TarFiles.results
+      File samples_info = GenerateSamplesInfo.samples_info
     }
 }

@@ -3,7 +3,7 @@
     "parent2": "String",
     "name": "String",
     "parent1": "String",
-    "chromosome": "String",
+    "chromosomes": "Array[String]",
     "cross": "String",
     "multiallelics": "Boolean"
   },

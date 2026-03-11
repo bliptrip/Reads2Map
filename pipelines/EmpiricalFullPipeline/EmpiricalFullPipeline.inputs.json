@@ -1,0 +1,52 @@
+{
+  "EmpiricalFullPipeline.spec": {
+    "barcode_key_files": ["path/to/keyfile1.txt", "path/to/keyfile2.txt"],
+    "fastq_files":       ["path/to/lane1.fastq.gz", "path/to/lane2.fastq.gz"],
+    "enzyme":            "EcoT22I",
+    "enzyme2":           null,
+    "adapter":           "AGATCGGAAGAGC"
+  },
+
+  "EmpiricalFullPipeline.ref_fasta": "path/to/genome.fasta",
+
+  "EmpiricalFullPipeline.dataset": {
+    "name":          "MyPopulation",
+    "parent1":       "P1_SeedLot_name",
+    "parent2":       "P2_SeedLot_name",
+    "cross":         "outcross",
+    "chromosomes":   ["Chr01", "Chr02", "Chr03"],
+    "multiallelics": false
+  },
+
+  "EmpiricalFullPipeline.max_cores":  4,
+  "EmpiricalFullPipeline.max_ram":    8000,
+  "EmpiricalFullPipeline.chunk_size": 10,
+  "EmpiricalFullPipeline.n_chrom":    3,
+
+  "EmpiricalFullPipeline.rm_dupli":      false,
+  "EmpiricalFullPipeline.pair_end":      false,
+  "EmpiricalFullPipeline.gatk_mchap":    false,
+  "EmpiricalFullPipeline.hardfilters":   true,
+  "EmpiricalFullPipeline.replaceAD":     true,
+  "EmpiricalFullPipeline.run_gatk":      true,
+  "EmpiricalFullPipeline.run_freebayes": true,
+  "EmpiricalFullPipeline.run_tassel":    true,
+  "EmpiricalFullPipeline.ploidy":        2,
+
+  "EmpiricalFullPipeline.replaceADbyMissing": "TRUE",
+
+  "EmpiricalFullPipeline.filters":    null,
+  "EmpiricalFullPipeline.prob_thres": null,
+  "EmpiricalFullPipeline.filt_segr":  null,
+
+  "_comment_sub_workflow_overrides": [
+    "Sub-workflow inputs can be overridden using dotted paths, e.g.:",
+    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_updog:      true",
+    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_supermassa: false",
+    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_polyrad:    true",
+    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_gusmap:     false",
+    "  EmpiricalFullPipeline.EmpiricalReads.Maps.filter_noninfo: false",
+    "  EmpiricalFullPipeline.EmpiricalReads.Maps.global_errors:  ['0.05']",
+    "  EmpiricalFullPipeline.EmpiricalReads.SNPCalling.run_stacks: false"
+  ]
+}

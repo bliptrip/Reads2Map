@@ -47,8 +47,7 @@ workflow Maps {
                 vcfs_SNPCall_software = vcfs_software,
                 vcfs_Counts_source = vcfs_counts_source,
                 vcfs_GenoCall_software = range(length(vcfs_software)),
-                filters = filters,
-                chromosome = dataset.chromosome
+                filters = filters
         }
     }
 
@@ -76,72 +75,95 @@ workflow Maps {
         File vcf_up = select_first([RemoveNonInformative.vcf_filtered, splitgeno.biallelics])
 
         if(ploidy == 2) {
-            if(run_updog){
-                call genotyping.onemapMapsEmp as updogMaps {
-                    input:
-                        vcf_file = vcf_up,
-                        SNPCall_program = vcfs_software[idx],
-                        GenotypeCall_program = "updog",
-                        CountsFrom = vcfs_counts_source[idx],
-                        cross = dataset.cross,
-                        parent1 = dataset.parent1,
-                        parent2 = dataset.parent2,
-                        chromosome = dataset.chromosome,
-                        multiallelics = dataset.multiallelics,
-                        multiallelics_file = splitgeno.multiallelics,
-                        max_cores = max_cores,
-                        ploidy = ploidy,
-                        global_errors = global_errors,
-                        genoprob_error = genoprob_error,
-                        prob_thres = prob_thres,
-                        genoprob_global_errors = genoprob_global_errors
+            scatter (chrom in dataset.chromosomes) {
+                if(run_updog){
+                    call genotyping.onemapMapsEmp as updogMaps {
+                        input:
+                            vcf_file = vcf_up,
+                            SNPCall_program = vcfs_software[idx],
+                            GenotypeCall_program = "updog",
+                            CountsFrom = vcfs_counts_source[idx],
+                            cross = dataset.cross,
+                            parent1 = dataset.parent1,
+                            parent2 = dataset.parent2,
+                            chromosome = chrom,
+                            multiallelics = dataset.multiallelics,
+                            multiallelics_file = splitgeno.multiallelics,
+                            max_cores = max_cores,
+                            ploidy = ploidy,
+                            global_errors = global_errors,
+                            genoprob_error = genoprob_error,
+                            prob_thres = prob_thres,
+                            genoprob_global_errors = genoprob_global_errors
+                    }
+                }
+
+                if(run_supermassa){
+                    call genotyping.onemapMapsEmp as supermassaMaps {
+                        input:
+                            vcf_file = vcf_up,
+                            SNPCall_program = vcfs_software[idx],
+                            GenotypeCall_program = "supermassa",
+                            CountsFrom = vcfs_counts_source[idx],
+                            cross = dataset.cross,
+                            parent1 = dataset.parent1,
+                            parent2 = dataset.parent2,
+                            chromosome = chrom,
+                            multiallelics = dataset.multiallelics,
+                            multiallelics_file = splitgeno.multiallelics,
+                            max_cores = max_cores,
+                            ploidy = ploidy,
+                            global_errors = global_errors,
+                            genoprob_error = genoprob_error,
+                            prob_thres = prob_thres,
+                            genoprob_global_errors = genoprob_global_errors
+                    }
+                }
+
+                if(run_polyrad){
+                    call genotyping.onemapMapsEmp as polyradMaps {
+                        input:
+                            vcf_file = vcf_up,
+                            SNPCall_program = vcfs_software[idx],
+                            GenotypeCall_program = "polyrad",
+                            CountsFrom = vcfs_counts_source[idx],
+                            cross = dataset.cross,
+                            parent1 = dataset.parent1,
+                            parent2 = dataset.parent2,
+                            chromosome = chrom,
+                            multiallelics = dataset.multiallelics,
+                            multiallelics_file = splitgeno.multiallelics,
+                            max_cores = max_cores,
+                            ploidy = ploidy,
+                            global_errors = global_errors,
+                            genoprob_error = genoprob_error,
+                            prob_thres = prob_thres,
+                            genoprob_global_errors = genoprob_global_errors
+                    }
+                }
+
+                if(vcfs_counts_source[idx] != "bam"){
+                    call snpcaller.SNPCallerMapsEmp {
+                        input:
+                            vcf_file = splitgeno.biallelics,
+                            cross = dataset.cross,
+                            SNPCall_program = vcfs_software[idx],
+                            GenotypeCall_program = "SNPCaller",
+                            CountsFrom = vcfs_counts_source[idx],
+                            parent1 = dataset.parent1,
+                            parent2 = dataset.parent2,
+                            chromosome = chrom,
+                            multiallelics = dataset.multiallelics,
+                            max_cores = max_cores,
+                            multiallelics_file = splitgeno.multiallelics,
+                            global_errors = global_errors,
+                            genoprob_error = genoprob_error,
+                            prob_thres = prob_thres,
+                            genoprob_global_errors = genoprob_global_errors
+                    }
                 }
             }
 
-            if(run_supermassa){
-                call genotyping.onemapMapsEmp as supermassaMaps {
-                    input:
-                        vcf_file = vcf_up,
-                        SNPCall_program = vcfs_software[idx],
-                        GenotypeCall_program = "supermassa",
-                        CountsFrom = vcfs_counts_source[idx],
-                        cross = dataset.cross,
-                        parent1 = dataset.parent1,
-                        parent2 = dataset.parent2,
-                        chromosome = dataset.chromosome,
-                        multiallelics = dataset.multiallelics,
-                        multiallelics_file = splitgeno.multiallelics,
-                        max_cores = max_cores,
-                        ploidy = ploidy,
-                        global_errors = global_errors,
-                        genoprob_error = genoprob_error,
-                        prob_thres = prob_thres,
-                        genoprob_global_errors = genoprob_global_errors
-                }
-            }
-
-            if(run_polyrad){
-                call genotyping.onemapMapsEmp as polyradMaps {
-                    input:
-                        vcf_file = vcf_up,
-                        SNPCall_program = vcfs_software[idx],
-                        GenotypeCall_program = "polyrad",
-                        CountsFrom = vcfs_counts_source[idx],
-                        cross = dataset.cross,
-                        parent1 = dataset.parent1,
-                        parent2 = dataset.parent2,
-                        chromosome = dataset.chromosome,
-                        multiallelics = dataset.multiallelics,
-                        multiallelics_file = splitgeno.multiallelics,
-                        max_cores = max_cores,
-                        ploidy = ploidy,
-                        global_errors = global_errors,
-                        genoprob_error = genoprob_error,
-                        prob_thres = prob_thres,
-                        genoprob_global_errors = genoprob_global_errors
-                }
-            }
-            
             if(run_gusmap){
                 call gusmap.gusmapMapsEmp {
                         input:
@@ -152,27 +174,6 @@ workflow Maps {
                         parent1 = dataset.parent1,
                         parent2 = dataset.parent2,
                         max_cores = max_cores
-                }
-            }
-
-            if(vcfs_counts_source[idx] != "bam"){
-                call snpcaller.SNPCallerMapsEmp {
-                    input:
-                        vcf_file = splitgeno.biallelics,
-                        cross = dataset.cross,
-                        SNPCall_program = vcfs_software[idx],
-                        GenotypeCall_program = "SNPCaller",
-                        CountsFrom = vcfs_counts_source[idx],
-                        parent1 = dataset.parent1,
-                        parent2 = dataset.parent2,
-                        chromosome = dataset.chromosome,
-                        multiallelics = dataset.multiallelics,
-                        max_cores = max_cores,
-                        multiallelics_file = splitgeno.multiallelics,
-                        global_errors = global_errors,
-                        genoprob_error = genoprob_error,
-                        prob_thres = prob_thres,
-                        genoprob_global_errors = genoprob_global_errors
                 }
             }
         }
@@ -259,18 +260,26 @@ workflow Maps {
         }
     }
 
-    if(defined(updogMaps.tar_gz_report)) {
-        Array[File] snpcaller_results = select_all(SNPCallerMapsEmp.tar_gz_report) 
+    # updog, supermassa, polyrad, snpcaller are inside scatter(chrom), so their
+    # outputs are Array[Array[File?]?] — strip the outer optionals, flatten, then
+    # strip the inner optionals to obtain a flat Array[File].
+    Array[File] snpcaller_flat = select_all(flatten(select_all(SNPCallerMapsEmp.tar_gz_report)))
+    if (length(snpcaller_flat) > 0) {
+        Array[File] snpcaller_results = snpcaller_flat
     }
-    if(defined(updogMaps.tar_gz_report)) {
-        Array[File] updog_results =  select_all(updogMaps.tar_gz_report) 
+    Array[File] updog_flat = select_all(flatten(select_all(updogMaps.tar_gz_report)))
+    if (length(updog_flat) > 0) {
+        Array[File] updog_results = updog_flat
     }
-    if(defined(supermassaMaps.tar_gz_report)){
-        Array[File] supermassa_results =  select_all(supermassaMaps.tar_gz_report)
+    Array[File] supermassa_flat = select_all(flatten(select_all(supermassaMaps.tar_gz_report)))
+    if (length(supermassa_flat) > 0) {
+        Array[File] supermassa_results = supermassa_flat
     }
-    if(defined(polyradMaps.tar_gz_report)){
-        Array[File] polyrad_results = select_all(polyradMaps.tar_gz_report) 
+    Array[File] polyrad_flat = select_all(flatten(select_all(polyradMaps.tar_gz_report)))
+    if (length(polyrad_flat) > 0) {
+        Array[File] polyrad_results = polyrad_flat
     }
+    # gusmap is outside the chromosome scatter — type is unchanged (Array[File?])
     if(defined(gusmapMapsEmp.tar_gz_report)){
         Array[File] gusmap_results = select_all(gusmapMapsEmp.tar_gz_report)
     }

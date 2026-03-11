@@ -11,7 +11,7 @@ task SepareChunksFastqString {
 
     command <<<
         R --vanilla --no-save <<RSCRIPT
-            df <- read.table("~{families_info}")
+            df <- read.table("~{families_info}", sep="\t")
             if(dim(df)[2] > 3) { #pair-end
               df <- df[,c(1,3,4,2)]
             } 

@@ -564,7 +564,7 @@ task TarFiles {
 
   Int disk_size = ceil(size(sequences, "GiB") * 2)
   Int memory_size = ceil(4000 + size(sequences, "MiB") * 2)
-  
+
   command <<<
     mkdir results
     mv ~{sep=" " sequences} results
@@ -586,6 +586,69 @@ task TarFiles {
 
   output {
     File results = "results.tar.gz"
+  }
+}
+
+task GenerateSamplesInfo {
+  input {
+    Array[File] trimmed_fastqs
+    Array[File] key_files
+  }
+
+  Int disk_size = ceil(size(trimmed_fastqs, "GiB") + size(key_files, "GiB") + 1)
+  Int memory_size = 512
+
+  command <<<
+    for f in ~{sep=" " trimmed_fastqs}; do echo "$f"; done > fastq_paths.txt
+    for f in ~{sep=" " key_files};     do echo "$f"; done > key_paths.txt
+
+    R --vanilla --no-save <<RSCRIPT
+      key_files <- readLines("key_paths.txt")
+      keys <- do.call(rbind, lapply(key_files, function(f) {
+        read.table(f, header = TRUE, sep = "\t", stringsAsFactors = FALSE,
+                   fill = TRUE, quote = "")
+      }))
+
+      # Exclude blank controls (SeedLot is NA, empty, or literally "NA")
+      valid <- !is.na(keys[["SeedLot"]]) &
+               nchar(trimws(keys[["SeedLot"]])) > 0 &
+               tolower(trimws(keys[["SeedLot"]])) != "na"
+      lookup <- unique(keys[valid, c("DNASample", "SeedLot", "FullSampleName")])
+      lookup[["SeedLot"]] <- gsub(" ", "_", lookup[["SeedLot"]])
+
+      fastq_paths <- readLines("fastq_paths.txt")
+      # Trimmed filename pattern: {DNASample}.fq.gz_trim.fastq.gz
+      dna_samples <- sub("\\.fq\\.gz_trim\\.fastq\\.gz$", "", basename(fastq_paths))
+
+      df <- data.frame(DNASample = dna_samples, fastq = fastq_paths,
+                       stringsAsFactors = FALSE)
+      result <- merge(df, lookup, by = "DNASample", sort = FALSE)
+
+      write.table(result[, c("fastq", "SeedLot", "FullSampleName")],
+                  file = "samples_info.tsv", sep = "\t",
+                  quote = FALSE, row.names = FALSE, col.names = FALSE)
+    RSCRIPT
+  >>>
+
+  runtime {
+    docker: "cristaniguti/reads2map:0.0.4"
+    singularity: "docker://cristaniguti/reads2map:0.0.4"
+    cpu: 1
+    # Cloud
+    memory: "~{memory_size} MiB"
+    disks: "local-disk " + disk_size + " HDD"
+    # Slurm
+    job_name: "GenerateSamplesInfo"
+    mem: "~{memory_size}M"
+    time: 1
+  }
+
+  meta {
+    description: "Generates a three-column samples_info TSV from trimmed FASTQ files and GBS key files. Columns: (1) trimmed FASTQ path, (2) SeedLot (genotype name), (3) FullSampleName (library name). Rows with blank or NA SeedLot are excluded."
+  }
+
+  output {
+    File samples_info = "samples_info.tsv"
   }
 }
 
