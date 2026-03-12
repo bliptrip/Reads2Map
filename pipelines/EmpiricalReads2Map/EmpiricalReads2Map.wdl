@@ -5,8 +5,8 @@ import "../../structs/dna_seq_structs.wdl"
 
 import "../../tasks/utils.wdl" as utils
 
-import "../../pipelines/EmpiricalSNPCalling/EmpiricalSNPCalling.wdl" as snpcalling
-import "../../pipelines/EmpiricalMaps/EmpiricalMaps.wdl" as maps
+import "../EmpiricalSNPCalling/EmpiricalSNPCalling.wdl" as snpcalling
+import "../EmpiricalMaps/EmpiricalMaps.wdl" as maps
 
 workflow EmpiricalReads {
 
@@ -32,6 +32,7 @@ workflow EmpiricalReads {
         Boolean run_gatk = true
         Boolean run_freebayes = true
         Boolean run_tassel = true
+        Boolean run_stacks = true
         Boolean pair_end = false
         String? enzyme
         Int ploidy = 2
@@ -40,6 +41,13 @@ workflow EmpiricalReads {
         Float? prob_thres
         String? filt_segr
         Boolean filter_noninfo = false
+        Boolean run_updog = true
+        Boolean run_supermassa = false
+        Boolean run_polyrad = true
+        Boolean run_gusmap = false
+        Array[String] global_errors = ["0.05"]
+        Boolean genoprob_error = true
+        Array[String] genoprob_global_errors = ["0.05"]
     }
 
     # Step 1 — call SNPs on all samples combined
@@ -48,6 +56,8 @@ workflow EmpiricalReads {
             samples_info  = samples_info,
             references    = references,
             max_cores     = max_cores,
+            max_ram       = max_ram,
+            chunk_size    = chunk_size,
             rm_dupli      = rm_dupli,
             gatk_mchap    = gatk_mchap,
             hardfilters   = hardfilters,
@@ -55,6 +65,7 @@ workflow EmpiricalReads {
             run_gatk      = run_gatk,
             run_freebayes = run_freebayes,
             run_tassel    = run_tassel,
+            run_stacks    = run_stacks,
             ploidy        = ploidy,
             n_chrom       = n_chrom,
             enzyme        = enzyme,
@@ -104,10 +115,17 @@ workflow EmpiricalReads {
                 filter_noninfo     = filter_noninfo,
                 filters            = filters,
                 max_cores          = max_cores,
-                replaceADbyMissing = replaceADbyMissing,
-                ploidy             = ploidy,
-                prob_thres         = prob_thres,
-                filt_segr          = filt_segr
+                replaceADbyMissing    = replaceADbyMissing,
+                ploidy                = ploidy,
+                prob_thres            = prob_thres,
+                filt_segr             = filt_segr,
+                run_updog             = run_updog,
+                run_supermassa        = run_supermassa,
+                run_polyrad           = run_polyrad,
+                run_gusmap            = run_gusmap,
+                global_errors         = global_errors,
+                genoprob_error        = genoprob_error,
+                genoprob_global_errors = genoprob_global_errors
         }
     }
 

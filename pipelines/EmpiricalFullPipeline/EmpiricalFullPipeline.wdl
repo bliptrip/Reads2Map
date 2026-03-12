@@ -6,13 +6,13 @@ version 1.0
 # consumes, and GenomeIndex produces all BWA/GATK index files from the raw
 # FASTA, so the user only needs to supply the FASTA itself.
 
-import "../../structs/preprocessing_reads_structs.wdl"
-import "../../structs/empirical_maps_structs.wdl"
-import "../../structs/dna_seq_structs.wdl"
+import "structs/preprocessing_reads_structs.wdl"
+import "structs/empirical_maps_structs.wdl"
+import "structs/dna_seq_structs.wdl"
 
-import "../PreprocessingReads/PreprocessingReads.wdl" as preprocessing
-import "../GenomeIndex/GenomeIndex.wdl"               as indexing
-import "../EmpiricalReads2Map/EmpiricalReads2Map.wdl" as mapping
+import "pipelines/PreprocessingReads/PreprocessingReads.wdl" as preprocessing
+import "pipelines/GenomeIndex/GenomeIndex.wdl"               as indexing
+import "pipelines/EmpiricalReads2Map/EmpiricalReads2Map.wdl" as mapping
 
 workflow EmpiricalFullPipeline {
 
@@ -53,6 +53,7 @@ workflow EmpiricalFullPipeline {
         Boolean run_gatk      = true
         Boolean run_freebayes = true
         Boolean run_tassel    = true
+        Boolean run_stacks    = true
         Int     ploidy        = 2
         Int     n_chrom
 
@@ -63,6 +64,14 @@ workflow EmpiricalFullPipeline {
         String? filters
         Float?  prob_thres
         String? filt_segr
+        Boolean filter_noninfo         = false
+        Boolean run_updog              = true
+        Boolean run_supermassa         = false
+        Boolean run_polyrad            = true
+        Boolean run_gusmap             = false
+        Array[String] global_errors    = ["0.05"]
+        Boolean genoprob_error         = true
+        Array[String] genoprob_global_errors = ["0.05"]
     }
 
     # Step 1 — demultiplex raw FASTQs and trim adapters (runs in parallel
@@ -80,7 +89,7 @@ workflow EmpiricalFullPipeline {
 
     # Assemble the ReferenceFasta struct from the raw FASTA and the
     # index files produced above.
-    ReferenceFasta references = ReferenceFasta {
+    ReferenceFasta references = object {
         ref_fasta:       ref_fasta,
         ref_fasta_index: GenomeIndex.ref_fasta_index,
         ref_dict:        GenomeIndex.ref_dict,
@@ -110,13 +119,22 @@ workflow EmpiricalFullPipeline {
             run_gatk           = run_gatk,
             run_freebayes      = run_freebayes,
             run_tassel         = run_tassel,
+            run_stacks         = run_stacks,
             ploidy             = ploidy,
             n_chrom            = n_chrom,
             enzyme             = spec.enzyme,
-            replaceADbyMissing = replaceADbyMissing,
-            filters            = filters,
-            prob_thres         = prob_thres,
-            filt_segr          = filt_segr
+            replaceADbyMissing     = replaceADbyMissing,
+            filters                = filters,
+            prob_thres             = prob_thres,
+            filt_segr              = filt_segr,
+            filter_noninfo         = filter_noninfo,
+            run_updog              = run_updog,
+            run_supermassa         = run_supermassa,
+            run_polyrad            = run_polyrad,
+            run_gusmap             = run_gusmap,
+            global_errors          = global_errors,
+            genoprob_error         = genoprob_error,
+            genoprob_global_errors = genoprob_global_errors
     }
 
     output {

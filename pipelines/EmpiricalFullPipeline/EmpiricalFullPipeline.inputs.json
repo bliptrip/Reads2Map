@@ -66,12 +66,12 @@
   ],
   "_comment_sub_workflow_overrides": [
     "Sub-workflow inputs can be overridden using dotted paths, e.g.:",
-    "  EmpiricalFullPipeline.EmpiricalReads.filter_noninfo:          false",
-    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_updog:          true",
-    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_supermassa:     false",
-    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_polyrad:        true",
-    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_gusmap:         false",
-    "  EmpiricalFullPipeline.EmpiricalReads.Maps.global_errors:      ['0.05']",
-    "  EmpiricalFullPipeline.EmpiricalReads.SNPCalling.run_stacks:   false"
+    "  EmpiricalFullPipeline.filter_noninfo:          false",
+    "  EmpiricalFullPipeline.run_updog:          true",
+    "  EmpiricalFullPipeline.run_supermassa:     false",
+    "  EmpiricalFullPipeline.run_polyrad:        true",
+    "  EmpiricalFullPipeline.run_gusmap:         false",
+    "  EmpiricalFullPipeline.global_errors:      ['0.05']",
+    "  EmpiricalFullPipeline.run_stacks:   false"
   ]
 }

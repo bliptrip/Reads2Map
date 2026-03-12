@@ -42,7 +42,8 @@ workflow SNPCalling {
       rm_dupli = rm_dupli,
       chunk_size = chunk_size,
       gatk_mchap = gatk_mchap,
-      pair_end = pair_end
+      pair_end = pair_end,
+      run_merge_bams = run_freebayes
   }
 
   if(run_gatk){
@@ -68,7 +69,7 @@ workflow SNPCalling {
   if(run_freebayes){
     call freebayes.FreebayesGenotyping {
       input:
-        merged_bam=CreateAlignmentFromFamilies.merged_bam,
+        merged_bam=select_first([CreateAlignmentFromFamilies.merged_bam]),
         references=references,
         program="freebayes",
         max_cores = max_cores,
