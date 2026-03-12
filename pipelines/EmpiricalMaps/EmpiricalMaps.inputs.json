@@ -1,10 +1,10 @@
 {
   "Maps.dataset": {
-    "parent2": "String",
-    "name": "String",
-    "parent1": "String",
-    "chromosomes": "Array[String]",
-    "cross": "String",
+    "parent2":       "String",
+    "name":          "String",
+    "parent1":       "String",
+    "chromosomes":   "Array[String]? (optional — auto-detected from VCF if omitted)",
+    "cross":         "String",
     "multiallelics": "Boolean"
   },
   "Maps.run_supermassa": "Boolean (optional, default = false)",

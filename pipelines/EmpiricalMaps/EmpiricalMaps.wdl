@@ -53,6 +53,16 @@ workflow Maps {
 
     Array[File] filtered_vcfs = select_first([ApplyRandomFiltersArray.vcfs_filt, vcfs])
 
+    # Auto-detect chromosomes from the first VCF when not supplied in the dataset
+    if (!defined(dataset.chromosomes)) {
+        call utils.GetChromosomesFromVcf {
+            input:
+                vcf_file = filtered_vcfs[0]
+        }
+    }
+
+    Array[String] chromosomes_to_use = select_first([dataset.chromosomes, GetChromosomesFromVcf.chromosomes])
+
     # Re-Genotyping with updog, supermassa and polyrad; and building maps with onemap
     scatter (idx in range(length(filtered_vcfs))) {
 
@@ -75,7 +85,7 @@ workflow Maps {
         File vcf_up = select_first([RemoveNonInformative.vcf_filtered, splitgeno.biallelics])
 
         if(ploidy == 2) {
-            scatter (chrom in dataset.chromosomes) {
+            scatter (chrom in chromosomes_to_use) {
                 if(run_updog){
                     call genotyping.onemapMapsEmp as updogMaps {
                         input:

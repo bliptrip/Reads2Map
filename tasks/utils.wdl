@@ -745,3 +745,137 @@ task BamToBed {
         File merged_bed = "merged.bed"
     }
 }
+
+task SubsetVcfToPopulation {
+    input {
+        File          vcf_file
+        Array[File]   key_files
+        String        pedigree
+        Array[String] pedigree_aliases   # may be empty
+        String        parent1_seedlot    # as it appears in VCF (spaces → underscores)
+        String        parent2_seedlot
+        String        population_name    # used as output file prefix
+        Float         max_missing = 0.20
+        Float         min_maf     = 0.05
+    }
+
+    Int disk_size   = ceil(size(vcf_file, "GiB") * 2 + size(key_files, "GiB") + 1)
+    Int memory_size = ceil(1000 + size(vcf_file, "MiB") * 2)
+
+    command <<<
+        set -euo pipefail
+
+        # Write file lists
+        for f in ~{sep=" " key_files}; do echo "$f"; done > key_paths.txt
+
+        # Write target pedigrees (canonical + any aliases) — one per line
+        echo "~{pedigree}" > target_pedigrees.txt
+        for alias in ~{sep=" " pedigree_aliases}; do
+            [[ -n "$alias" ]] && echo "$alias" >> target_pedigrees.txt
+        done
+
+        # Write parent SeedLot names
+        echo "~{parent1_seedlot}" > parent1.txt
+        echo "~{parent2_seedlot}" > parent2.txt
+
+        # Parse key files in R: collect progeny SeedLot values for this population
+        R --vanilla --no-save <<'RSCRIPT'
+        key_files_list  <- readLines("key_paths.txt")
+        keys <- do.call(rbind, lapply(key_files_list, function(f)
+            read.table(f, header = TRUE, sep = "\t", stringsAsFactors = FALSE,
+                       fill = TRUE, quote = "")))
+
+        target_peds  <- readLines("target_pedigrees.txt")
+        parent1      <- readLines("parent1.txt")
+        parent2      <- readLines("parent2.txt")
+
+        # Rows belonging to the target pedigree(s)
+        progeny_rows     <- keys[keys[["Pedigree"]] %in% target_peds, ]
+        # VCF sample name = SeedLot with spaces replaced by underscores
+        progeny_seedlots <- unique(gsub(" ", "_", progeny_rows[["SeedLot"]]))
+        # Remove blanks and explicit parent names (they are added separately)
+        progeny_seedlots <- progeny_seedlots[
+            nchar(trimws(progeny_seedlots)) > 0 &
+            tolower(trimws(progeny_seedlots)) != "na"
+        ]
+        progeny_seedlots <- setdiff(progeny_seedlots, c(parent1, parent2))
+
+        # Final sample list: parents first, then progeny
+        sample_list <- c(parent1, parent2, progeny_seedlots)
+        cat(paste(sample_list, collapse = ","), "\n", file = "sample_list.txt", sep = "")
+        RSCRIPT
+
+        SAMPLES=$(cat sample_list.txt)
+
+        # Subset VCF → recalculate population-level tags → re-filter
+        bcftools view \
+            --samples "${SAMPLES}" \
+            "~{vcf_file}" \
+        | bcftools +fill-tags -- -t F_MISSING,MAF,AF \
+        | bcftools view \
+            --include "F_MISSING <= ~{max_missing} && MAF >= ~{min_maf}" \
+            -Oz -o "~{population_name}_subset.vcf.gz"
+
+        bcftools index --tbi "~{population_name}_subset.vcf.gz"
+    >>>
+
+    runtime {
+        docker:      "lifebitai/bcftools:1.10.2"
+        singularity: "docker://lifebitai/bcftools:1.10.2"
+        cpu: 1
+        # Cloud
+        memory:  "~{memory_size} MiB"
+        disks:   "local-disk " + disk_size + " HDD"
+        # Slurm
+        job_name: "SubsetVcfToPopulation"
+        mem:      "~{memory_size}M"
+        time:     10
+    }
+
+    meta {
+        author:      "Cristiane Taniguti"
+        email:       "chtaniguti@tamu.edu"
+        description: "Parses GBS key files to identify samples belonging to a target pedigree, then uses [bcftools](https://samtools.github.io/bcftools/bcftools.html) to subset the VCF to those samples plus their two parents, recalculate per-population allele and missingness tags, and re-apply missingness/MAF filters."
+    }
+
+    output {
+        File subset_vcf     = "~{population_name}_subset.vcf.gz"
+        File subset_vcf_tbi = "~{population_name}_subset.vcf.gz.tbi"
+    }
+}
+
+task GetChromosomesFromVcf {
+    input {
+        File vcf_file
+    }
+
+    Int disk_size = ceil(size(vcf_file, "GiB") * 2 + 1)
+    Int memory_size = ceil(1000 + size(vcf_file, "MiB"))
+
+    command <<<
+        bcftools query -f '%CHROM\n' ~{vcf_file} | sort -u > chromosomes.txt
+    >>>
+
+    runtime {
+        docker: "lifebitai/bcftools:1.10.2"
+        singularity: "docker://lifebitai/bcftools:1.10.2"
+        cpu: 1
+        # Cloud
+        memory: "~{memory_size} MiB"
+        disks: "local-disk " + disk_size + " HDD"
+        # Slurm
+        job_name: "GetChromosomesFromVcf"
+        mem: "~{memory_size}M"
+        time: 5
+    }
+
+    meta {
+        author: "Cristiane Taniguti"
+        email: "chtaniguti@tamu.edu"
+        description: "Uses [bcftools query](https://samtools.github.io/bcftools/bcftools.html) to extract the sorted unique chromosome/contig names present in a VCF file."
+    }
+
+    output {
+        Array[String] chromosomes = read_lines("chromosomes.txt")
+    }
+}

@@ -9,14 +9,32 @@
 
   "EmpiricalFullPipeline.ref_fasta": "path/to/genome.fasta",
 
-  "EmpiricalFullPipeline.dataset": {
-    "name":          "MyPopulation",
-    "parent1":       "P1_SeedLot_name",
-    "parent2":       "P2_SeedLot_name",
-    "cross":         "outcross",
-    "chromosomes":   ["Chr01", "Chr02", "Chr03"],
-    "multiallelics": false
-  },
+  "EmpiricalFullPipeline.populations": [
+    {
+      "pedigree":          "CQxMQ",
+      "pedigree_aliases":  ["MQxCQ"],
+      "dataset": {
+        "name":          "CQxMQ",
+        "parent1":       "Crimson_Queen",
+        "parent2":       "Mullica_Queen",
+        "cross":         "outcross",
+        "chromosomes":   null,
+        "multiallelics": false
+      }
+    },
+    {
+      "pedigree":          "STxMQ",
+      "pedigree_aliases":  ["MQxST"],
+      "dataset": {
+        "name":          "STxMQ",
+        "parent1":       "Stevens",
+        "parent2":       "Mullica_Queen",
+        "cross":         "outcross",
+        "chromosomes":   null,
+        "multiallelics": false
+      }
+    }
+  ],
 
   "EmpiricalFullPipeline.max_cores":  4,
   "EmpiricalFullPipeline.max_ram":    8000,
@@ -39,14 +57,21 @@
   "EmpiricalFullPipeline.prob_thres": null,
   "EmpiricalFullPipeline.filt_segr":  null,
 
+  "_comment_populations": [
+    "Each entry in 'populations' defines one mapping population.",
+    "  pedigree         – canonical Pedigree value in GBS key files (e.g. 'CQxMQ')",
+    "  pedigree_aliases – reciprocal cross notations for the same population (e.g. ['MQxCQ']); use [] if none",
+    "  dataset.parent1/parent2 – SeedLot names as they appear in the VCF header (spaces replaced by underscores)",
+    "  dataset.chromosomes – omit (null) to auto-detect from the VCF"
+  ],
   "_comment_sub_workflow_overrides": [
     "Sub-workflow inputs can be overridden using dotted paths, e.g.:",
-    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_updog:      true",
-    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_supermassa: false",
-    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_polyrad:    true",
-    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_gusmap:     false",
-    "  EmpiricalFullPipeline.EmpiricalReads.Maps.filter_noninfo: false",
-    "  EmpiricalFullPipeline.EmpiricalReads.Maps.global_errors:  ['0.05']",
-    "  EmpiricalFullPipeline.EmpiricalReads.SNPCalling.run_stacks: false"
+    "  EmpiricalFullPipeline.EmpiricalReads.filter_noninfo:          false",
+    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_updog:          true",
+    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_supermassa:     false",
+    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_polyrad:        true",
+    "  EmpiricalFullPipeline.EmpiricalReads.Maps.run_gusmap:         false",
+    "  EmpiricalFullPipeline.EmpiricalReads.Maps.global_errors:      ['0.05']",
+    "  EmpiricalFullPipeline.EmpiricalReads.SNPCalling.run_stacks:   false"
   ]
 }

@@ -29,9 +29,11 @@ workflow EmpiricalFullPipeline {
         File ref_fasta
 
         # ---------------------------------------------------------------
-        # Population / dataset metadata
+        # Population / dataset metadata.  One entry per mapping population;
+        # SNP calling runs on all samples, VCF subsetting and map building
+        # are scattered over this array.
         # ---------------------------------------------------------------
-        Dataset dataset
+        Array[PopulationSpec] populations
 
         # ---------------------------------------------------------------
         # Compute resources
@@ -89,12 +91,14 @@ workflow EmpiricalFullPipeline {
         ref_sa:          GenomeIndex.ref_sa
     }
 
-    # Step 3 — align, genotype, and map; enzyme is shared with preprocessing
+    # Step 3 — align, call SNPs on all samples, then build per-population maps;
+    #          enzyme and key files are shared with preprocessing
     call mapping.EmpiricalReads {
         input:
             samples_info       = PreprocessingReads.samples_info,
             references         = references,
-            dataset            = dataset,
+            populations        = populations,
+            key_files          = spec.barcode_key_files,
             max_cores          = max_cores,
             max_ram            = max_ram,
             chunk_size         = chunk_size,
@@ -116,8 +120,8 @@ workflow EmpiricalFullPipeline {
     }
 
     output {
-        File preprocessing_results = PreprocessingReads.results
-        File samples_info          = PreprocessingReads.samples_info
-        File mapping_results       = EmpiricalReads.EmpiricalReads_results
+        File         preprocessing_results = PreprocessingReads.results
+        File         samples_info          = PreprocessingReads.samples_info
+        Array[File]  mapping_results       = EmpiricalReads.EmpiricalReads_results
     }
 }
