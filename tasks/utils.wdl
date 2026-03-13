@@ -618,7 +618,7 @@ task GenerateSamplesInfo {
 
       fastq_paths <- readLines("fastq_paths.txt")
       # Trimmed filename pattern: {DNASample}.fq.gz_trim.fastq.gz
-      dna_samples <- sub("\\.fq\\.gz_trim\\.fastq\\.gz$", "", basename(fastq_paths))
+      dna_samples <- sub('\\\\.fq\\\\.gz_trim\\\\.fastq\\\\.gz$', "", basename(fastq_paths))
 
       df <- data.frame(DNASample = dna_samples, fastq = basename(fastq_paths),
                        stringsAsFactors = FALSE)
