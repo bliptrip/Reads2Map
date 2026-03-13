@@ -6,7 +6,8 @@ import "../tasks/utils.wdl" as utils
 
 workflow CreateAlignmentFromFamilies {
     input {
-        File families_info
+        File         families_info
+        Array[File]  trimmed_fastqs
         ReferenceFasta references
         Int max_cores
         Boolean rm_dupli
@@ -26,6 +27,13 @@ workflow CreateAlignmentFromFamilies {
 
         Array[Array[String]] sample_file = read_tsv(chunk)
 
+        # Resolve basenames from TSV column 0 to proper WDL File references
+        call utils.ResolveFastqsByBasename {
+            input:
+                basenames  = sample_file[0],
+                all_fastqs = trimmed_fastqs
+        }
+
         if(pair_end) {
             Array[File] pair = sample_file[3]
         }
@@ -33,8 +41,8 @@ workflow CreateAlignmentFromFamilies {
         call alg.RunBwaAlignment {
             input:
                 sampleName  = sample_file[1],
-                reads1       = sample_file[0],
-                reads2       = pair,
+                reads1      = ResolveFastqsByBasename.resolved,
+                reads2      = pair,
                 libraries   = sample_file[2],
                 pair_end    = pair_end,
                 references  = references,

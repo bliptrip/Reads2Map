@@ -10,7 +10,8 @@ import "../subworkflows/norm_filt_vcf.wdl" as norm_filt
 
 workflow TasselGenotyping {
     input {
-        File families_info
+        File         families_info
+        Array[File]  trimmed_fastqs
         ReferenceFasta references
         Int max_cores
         Int max_ram
@@ -24,9 +25,16 @@ workflow TasselGenotyping {
 
     Array[Array[String]] sample_file = read_tsv(transposeSamples.transpose_samples)
 
+    # Resolve basenames from TSV row 0 to proper WDL File references
+    call utils.ResolveFastqsByBasename {
+        input:
+            basenames  = sample_file[0],
+            all_fastqs = trimmed_fastqs
+    }
+
     call tassel.BarcodeFaker {
         input:
-            fastq = sample_file[0],
+            fastq          = ResolveFastqsByBasename.resolved,
             FullSampleName = sample_file[1] # Tassel does not consider replicates variances, we simple joint the reads
     }
 

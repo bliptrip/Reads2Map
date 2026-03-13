@@ -47,7 +47,8 @@ workflow PreprocessingReads{
     }
 
     output {
-      File results      = TarFiles.results
-      File samples_info = GenerateSamplesInfo.samples_info
+      File         results         = TarFiles.results
+      File         samples_info    = GenerateSamplesInfo.samples_info
+      Array[File]  trimmed_fastqs  = RemoveAdapt.trim_seq
     }
 }

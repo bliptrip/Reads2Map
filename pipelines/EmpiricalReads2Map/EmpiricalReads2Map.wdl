@@ -11,7 +11,8 @@ import "../EmpiricalMaps/EmpiricalMaps.wdl" as maps
 workflow EmpiricalReads {
 
     input {
-        File samples_info
+        File         samples_info
+        Array[File]  trimmed_fastqs
         ReferenceFasta references
 
         # One entry per mapping population.  SNP calling runs on all samples
@@ -53,7 +54,8 @@ workflow EmpiricalReads {
     # Step 1 — call SNPs on all samples combined
     call snpcalling.SNPCalling {
         input:
-            samples_info  = samples_info,
+            samples_info   = samples_info,
+            trimmed_fastqs = trimmed_fastqs,
             references    = references,
             max_cores     = max_cores,
             max_ram       = max_ram,

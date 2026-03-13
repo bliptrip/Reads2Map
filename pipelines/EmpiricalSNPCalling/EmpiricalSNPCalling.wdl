@@ -12,7 +12,8 @@ import "../../subworkflows/stacks_genotyping.wdl" as stacks
 workflow SNPCalling {
 
   input {
-    File samples_info
+    File         samples_info
+    Array[File]  trimmed_fastqs
     ReferenceFasta references
     Int max_cores
     Int max_ram
@@ -36,7 +37,8 @@ workflow SNPCalling {
 
   call fam.CreateAlignmentFromFamilies {
     input:
-      families_info=samples_info,
+      families_info  = samples_info,
+      trimmed_fastqs = trimmed_fastqs,
       references=references,
       max_cores = max_cores,
       rm_dupli = rm_dupli,
@@ -82,7 +84,8 @@ workflow SNPCalling {
   if(run_tassel) {
     call tassel.TasselGenotyping{
       input:
-        families_info = samples_info,
+        families_info  = samples_info,
+        trimmed_fastqs = trimmed_fastqs,
         references = references,
         max_cores = max_cores,
         max_ram = max_ram,

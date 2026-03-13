@@ -105,6 +105,7 @@ workflow EmpiricalFullPipeline {
     call mapping.EmpiricalReads {
         input:
             samples_info       = PreprocessingReads.samples_info,
+            trimmed_fastqs     = PreprocessingReads.trimmed_fastqs,
             references         = references,
             populations        = populations,
             key_files          = spec.barcode_key_files,

@@ -620,7 +620,7 @@ task GenerateSamplesInfo {
       # Trimmed filename pattern: {DNASample}.fq.gz_trim.fastq.gz
       dna_samples <- sub("\\.fq\\.gz_trim\\.fastq\\.gz$", "", basename(fastq_paths))
 
-      df <- data.frame(DNASample = dna_samples, fastq = fastq_paths,
+      df <- data.frame(DNASample = dna_samples, fastq = basename(fastq_paths),
                        stringsAsFactors = FALSE)
       result <- merge(df, lookup, by = "DNASample", sort = FALSE)
 
@@ -841,6 +841,56 @@ task SubsetVcfToPopulation {
     output {
         File subset_vcf     = "~{population_name}_subset.vcf.gz"
         File subset_vcf_tbi = "~{population_name}_subset.vcf.gz.tbi"
+    }
+}
+
+task ResolveFastqsByBasename {
+    input {
+        Array[String] basenames
+        Array[File]   all_fastqs
+    }
+
+    Int memory_size = 256
+
+    command <<<
+        basenames_file="~{write_lines(basenames)}"
+        fastqs_file="~{write_lines(all_fastqs)}"
+
+        while IFS= read -r bn; do
+            match=""
+            while IFS= read -r fq; do
+                if [[ "$(basename "$fq")" == "$bn" ]]; then
+                    match="$fq"
+                    break
+                fi
+            done < "$fastqs_file"
+            if [[ -z "$match" ]]; then
+                echo "ERROR: no match for basename '$bn'" >&2
+                exit 1
+            fi
+            echo "$match"
+        done < "$basenames_file"
+    >>>
+
+    runtime {
+        docker:      "ubuntu:20.04"
+        singularity: "docker://ubuntu:20.04"
+        cpu: 1
+        # Cloud
+        memory: "~{memory_size} MiB"
+        disks:  "local-disk 1 HDD"
+        # Slurm
+        job_name: "ResolveFastqsByBasename"
+        mem:      "~{memory_size}M"
+        time:     1
+    }
+
+    meta {
+        description: "Resolves an array of FASTQ basenames to their full WDL File paths by matching against a supplied array of files. WDL 1.0-compatible replacement for as_map(zip(...))."
+    }
+
+    output {
+        Array[File] resolved = read_lines(stdout())
     }
 }
 
