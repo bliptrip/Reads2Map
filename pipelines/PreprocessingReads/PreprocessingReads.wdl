@@ -13,20 +13,22 @@ workflow PreprocessingReads{
       Specifications spec
     }
 
-    call utils.GenerateBarcodes {
-      input:
-        key_files = spec.barcode_key_files
+    scatter (i in range(length(spec.barcode_key_files))) {
+      call utils.GenerateBarcodes {
+        input:
+          key_file = spec.barcode_key_files[i]
+      }
+
+      call stacks.ProcessRadTags {
+        input:
+          enzyme = spec.enzyme,
+          enzyme2 = spec.enzyme2,
+          fq_files = [spec.fastq_files[i]],
+          barcodes = GenerateBarcodes.barcodes
+      }
     }
 
-    call stacks.ProcessRadTags {
-      input:
-        enzyme = spec.enzyme,
-        enzyme2 = spec.enzyme2,
-        fq_files = spec.fastq_files,
-        barcodes = GenerateBarcodes.barcodes
-    }
-
-    scatter (sequence in ProcessRadTags.seq_results) {
+    scatter (sequence in flatten(ProcessRadTags.seq_results)) {
       call cutadapt.RemoveAdapt {
         input:
           sequence = sequence,
