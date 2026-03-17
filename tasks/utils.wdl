@@ -776,32 +776,37 @@ task SubsetVcfToPopulation {
         echo "~{parent1_seedlot}" > parent1.txt
         echo "~{parent2_seedlot}" > parent2.txt
 
-        # Parse key files in R: collect progeny SeedLot values for this population
-        R --vanilla --no-save <<'RSCRIPT'
-        key_files_list  <- readLines("key_paths.txt")
-        keys <- do.call(rbind, lapply(key_files_list, function(f)
-            read.table(f, header = TRUE, sep = "\t", stringsAsFactors = FALSE,
-                       fill = TRUE, quote = "")))
+        # Parse key files with awk: collect progeny SeedLot values for this population
+        awk -F'\t' '
+            NR == FNR { target_peds[$0] = 1; next }
+            FNR == 1 {
+                # detect column indices from header
+                for (i = 1; i <= NF; i++) {
+                    if ($i == "Pedigree") ped_col = i
+                    if ($i == "SeedLot")  sl_col  = i
+                }
+                next
+            }
+            (ped_col && sl_col && $ped_col in target_peds) {
+                sl = $sl_col
+                gsub(/ /, "_", sl)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", sl)
+                if (sl != "" && tolower(sl) != "na") seen[sl] = 1
+            }
+            END { for (s in seen) print s }
+        ' target_pedigrees.txt $(cat key_paths.txt) > progeny_raw.txt
 
-        target_peds  <- readLines("target_pedigrees.txt")
-        parent1      <- readLines("parent1.txt")
-        parent2      <- readLines("parent2.txt")
+        PARENT1=$(cat parent1.txt)
+        PARENT2=$(cat parent2.txt)
 
-        # Rows belonging to the target pedigree(s)
-        progeny_rows     <- keys[keys[["Pedigree"]] %in% target_peds, ]
-        # VCF sample name = SeedLot with spaces replaced by underscores
-        progeny_seedlots <- unique(gsub(" ", "_", progeny_rows[["SeedLot"]]))
-        # Remove blanks and explicit parent names (they are added separately)
-        progeny_seedlots <- progeny_seedlots[
-            nchar(trimws(progeny_seedlots)) > 0 &
-            tolower(trimws(progeny_seedlots)) != "na"
-        ]
-        progeny_seedlots <- setdiff(progeny_seedlots, c(parent1, parent2))
+        # Remove parent names from progeny list, then build final comma-separated list
+        grep -vxF "$PARENT1" progeny_raw.txt | grep -vxF "$PARENT2" | sort -u > progeny_filtered.txt
 
-        # Final sample list: parents first, then progeny
-        sample_list <- c(parent1, parent2, progeny_seedlots)
-        cat(paste(sample_list, collapse = ","), "\n", file = "sample_list.txt", sep = "")
-        RSCRIPT
+        printf '%s' "${PARENT1},${PARENT2}" > sample_list.txt
+        if [ -s progeny_filtered.txt ]; then
+            printf ',%s' $(paste -sd',' progeny_filtered.txt) >> sample_list.txt
+        fi
+        printf '\n' >> sample_list.txt
 
         SAMPLES=$(cat sample_list.txt)
 
