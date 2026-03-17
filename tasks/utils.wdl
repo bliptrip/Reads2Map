@@ -334,6 +334,7 @@ task ReplaceAD {
 
   command <<<
 
+    ln -s ~{ref_index} ~{ref_fasta}.fai
     bcftools view --min-alleles 3 ~{vcf} -Oz -o multiallelics.vcf.gz
     bcftools view -G --max-alleles 2 -v snps ~{vcf} -Oz -o sites.vcf.gz
     bcftools index --tbi -f sites.vcf.gz
@@ -522,17 +523,14 @@ task MergeBams{
 
 task GenerateBarcodes {
   input {
-    Array[File] key_files
+    File key_file
   }
 
-  Int disk_size = ceil(size(key_files, "GiB") * 2 + 1)
+  Int disk_size = ceil(size(key_file, "GiB") * 2 + 1)
   Int memory_size = 512
 
   command <<<
-    key_files=(~{sep=" " key_files})
-    for key_file in "${key_files[@]}"; do
-      tail -n +2 "$key_file" | awk -F'\t' '{print $3 "\t" $4}' >> barcodes.tsv
-    done
+    tail -n +2 ~{key_file} | awk -F'\t' '{print $3 "\t" $4}' > barcodes.tsv
   >>>
 
   runtime {
@@ -549,7 +547,7 @@ task GenerateBarcodes {
   }
 
   meta {
-    description: "Concatenates barcode-to-sample mappings from one or more GBS key files (tab-delimited, columns: Flowcell Lane Barcode DNASample ...) into a unified two-column TSV (barcode TAB sample) for use with process_radtags."
+    description: "Extracts barcode-to-sample mappings from a single GBS key file (tab-delimited, columns: Flowcell Lane Barcode DNASample ...) into a two-column TSV (barcode TAB sample) for use with process_radtags."
   }
 
   output {

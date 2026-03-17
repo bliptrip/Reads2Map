@@ -22,7 +22,14 @@ task RunBwaAlignment {
   Int memory_size = 4000 * max_cores
 
   command <<<
+    set -euo pipefail
     mkdir tmp
+
+    ln -s ~{references.ref_amb} ~{references.ref_fasta}.amb
+    ln -s ~{references.ref_ann} ~{references.ref_fasta}.ann
+    ln -s ~{references.ref_bwt} ~{references.ref_fasta}.bwt
+    ln -s ~{references.ref_pac} ~{references.ref_fasta}.pac
+    ln -s ~{references.ref_sa} ~{references.ref_fasta}.sa
 
     reads1_list=( ~{sep=" " reads1} )
     # Handle optional reads2 array
@@ -36,23 +43,26 @@ task RunBwaAlignment {
     BAMS=()
     for index in ${!reads1_list[@]}; do
       echo "${reads1_list[$index]} is in ${lib_list[$index]}"
-      
-      if [ "~{pair_end}" = "true" ]; then 
-        reads=( "${reads1_list[$index]} ${reads2_list[$index]}" ) 
-      else 
-        reads=( "${reads1_list[$index]}" ) 
+
+      if [ "~{pair_end}" = "true" ]; then
+        reads=( "${reads1_list[$index]} ${reads2_list[$index]}" )
+      else
+        reads=( "${reads1_list[$index]}" )
       fi
+
+      # Sanitize library name for use in filenames (colons are interpreted as URI schemes by Java NIO)
+      lib_safe="${lib_list[$index]//:/_}"
 
       bwa_header="@RG\tID:${sampleName_list[$index]}.${lib_list[$index]}\tLB:lib-${lib_list[$index]}\tPL:illumina\tSM:${sampleName_list[$index]}\tPU:FLOWCELL1.LANE1.${lib_list[$index]}"
       /usr/gitc/./bwa mem -t ~{max_cores} -R "${bwa_header}" ~{references.ref_fasta} $reads | \
           java -jar /usr/gitc/picard.jar SortSam \
             I=/dev/stdin \
-            O="${sampleName_list[$index]}.${lib_list[$index]}.sorted.bam" \
+            O="${sampleName_list[$index]}.${lib_safe}.sorted.bam" \
             TMP_DIR=./tmp \
             SORT_ORDER=coordinate \
             CREATE_INDEX=true;
-      mv "${sampleName_list[$index]}.${lib_list[$index]}.sorted.bai" "${sampleName_list[$index]}.${lib_list[$index]}.sorted.bam.bai";
-      BAMS+=("I=${sampleName_list[$index]}.${lib_list[$index]}.sorted.bam")
+      mv "${sampleName_list[$index]}.${lib_safe}.sorted.bai" "${sampleName_list[$index]}.${lib_safe}.sorted.bam.bai";
+      BAMS+=("I=${sampleName_list[$index]}.${lib_safe}.sorted.bam")
     done
 
     sampleName_unique=($(echo "${sampleName_list[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
@@ -157,7 +167,14 @@ task RunBwaAlignmentSimu {
   Int memory_size = 14000
 
   command <<<
+    set -euo pipefail
     mkdir tmp
+
+    ln -s ~{references.ref_amb} ~{references.ref_fasta}.amb
+    ln -s ~{references.ref_ann} ~{references.ref_fasta}.ann
+    ln -s ~{references.ref_bwt} ~{references.ref_fasta}.bwt
+    ln -s ~{references.ref_pac} ~{references.ref_fasta}.pac
+    ln -s ~{references.ref_sa} ~{references.ref_fasta}.sa
 
     ln -s ~{sep = " " fastqs} .
 

@@ -18,6 +18,7 @@ task RunFreebayes {
 
    ln -s ~{bam} .
    ln -s ~{bai} .
+   ln -s ~{reference_idx} ~{reference}.fai
 
    freebayes-parallel <(fasta_generate_regions.py ~{reference_idx} 100000) ~{max_cores} \
    --genotype-qualities --ploidy ~{ploidy} -f ~{reference} *bam > "freebayes.vcf"

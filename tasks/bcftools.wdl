@@ -15,6 +15,7 @@ task BiallelicNormalization {
 
   command <<<
 
+    ln -s ~{reference_idx} ~{reference}.fai
     bcftools norm ~{vcf_file} --rm-dup all -Ov --check-ref w -f ~{reference} > vcf_norm.vcf
 
     bgzip vcf_norm.vcf

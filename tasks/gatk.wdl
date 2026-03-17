@@ -24,11 +24,15 @@ task HaplotypeCaller {
   command <<<
     set -euo pipefail
 
+    ln -s ~{reference_fai} ~{reference_fasta}.fai
+    ln -s ~{reference_dict} $(dirname ~{reference_fasta})/$(basename ~{reference_fasta} .fasta).dict
+
     for bam in ~{sep=" " bams}; do ln -s $bam .; done
     for bai in ~{sep=" " bams_index}; do ln -s $bai .; done
 
     mkdir vcfs
     ## gvcf for each sample
+    pids=()
     for bam in *.bam; do
       out_name=$(basename -s ".bam" "$bam")
       /usr/gitc/gatk4/./gatk --java-options "-Xms~{memory_min}m -Xmx~{memory_max}m" HaplotypeCaller \
@@ -39,9 +43,10 @@ task HaplotypeCaller {
         -O "vcfs/${out_name}.g.vcf.gz" \
         --max-alternate-alleles 1 \
         --max-reads-per-alignment-start 0 &
+      pids+=($!)
     done
 
-    wait  
+    for pid in "${pids[@]}"; do wait "$pid" || exit 1; done
   >>>
 
   runtime {
@@ -92,13 +97,20 @@ task ImportGVCFs  {
     for i in ~{sep=" " vcfs}; do ln -s $i gvcfs/; done
     for i in ~{sep=" " vcfs_index}; do ln -s $i gvcfs/; done
 
-    /usr/gitc/gatk4/./gatk --java-options "-Xms~{memory_min}m -Xmx~{memory_max}m" GenomicsDBImport \
+    vcf_args=$(find gvcfs/ -name "*.g.vcf.gz" -type l | sed 's/^/-V /' | tr '\n' ' ')
+    if [ -z "$vcf_args" ]; then
+      echo "ERROR: No GVCF files found in gvcfs/ for interval ~{interval}. Contents of gvcfs/:" >&2
+      ls -la gvcfs/ >&2
+      exit 1
+    fi
+
+    /usr/gitc/gatk4/./gatk --java-options "-DGATK_STACKTRACE_ON_USER_EXCEPTION=true -Xms~{memory_min}m -Xmx~{memory_max}m" GenomicsDBImport \
       --batch-size 50 \
       --reader-threads 5 \
       --genomicsdb-workspace-path cohort_db \
       -L ~{interval} \
-      -V $(find gvcfs/*.g.vcf.gz -type l | paste -d',' -s | sed 's/,/ -V /g') \
-      --consolidate 
+      $vcf_args \
+      --consolidate
 
     tar -cf cohort_db.tar cohort_db
 
@@ -146,6 +158,8 @@ task GenotypeGVCFs   {
   command <<<
     set -euo pipefail
 
+    ln -s ~{reference_fai} ~{reference_fasta}.fai
+    ln -s ~{reference_dict} $(dirname ~{reference_fasta})/$(basename ~{reference_fasta} .fasta).dict
     tar -xf ~{workspace_tar}
 
     /usr/gitc/gatk4/./gatk --java-options "-Xms~{memory_min}m -Xmx~{memory_max}m" GenotypeGVCFs \
@@ -293,6 +307,9 @@ task VariantFiltration {
     Int memory_size = 3000 + ceil(size(vcf_file, "MB") + size(reference, "MB") + 1)
 
     command <<<
+        ln -s ~{reference_idx} ~{reference}.fai
+        ln -s ~{reference_dict} $(dirname ~{reference})/$(basename ~{reference} .fasta).dict
+
         /usr/gitc/gatk4/./gatk VariantFiltration \
             -V ~{vcf_file} \
             -filter "QD < 2.0" --filter-name "QD2" \
@@ -351,6 +368,9 @@ task VariantsToTableForHardFilteringSimulated {
      Int memory_size = 3000 + ceil(size(reference, "MB") + size(vcf_file, "MB") + size(simu_vcf, "MB") + 2)
 
     command <<<
+        ln -s ~{reference_idx} ~{reference}.fai
+        ln -s ~{reference_dict} $(dirname ~{reference})/$(basename ~{reference} .fasta).dict
+
         /usr/gitc/./bgzip -c  ~{simu_vcf} > ~{simu_vcf}.gz
         /usr/gitc/./tabix -p vcf ~{simu_vcf}.gz
 
@@ -441,6 +461,8 @@ task VariantEval {
   Int memory_size = 3000 + ceil(size(vcf_norm, "MiB") + size(reference, "MiB") + size(vcf_simu, "MiB") + 2)
 
   command <<<
+    ln -s ~{reference_idx} ~{reference}.fai
+    ln -s ~{reference_dict} $(dirname ~{reference})/$(basename ~{reference} .fasta).dict
     java -jar  /usr/gitc/GATK35.jar -T VariantEval -R ~{reference} -eval ~{vcf_norm} ~{"-D " + vcf_simu} -EV ValidationReport -EV CountVariants -ploidy ~{ploidy} -o vcfEval.txt
   >>>
 
