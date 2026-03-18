@@ -823,8 +823,8 @@ task SubsetVcfToPopulation {
     >>>
 
     runtime {
-        docker:      "lifebitai/bcftools:1.10.2"
-        singularity: "docker://lifebitai/bcftools:1.10.2"
+        docker:      "lifebitai/bcftools:1.13"
+        singularity: "docker://lifebitai/bcftools:1.13"
         cpu: 1
         # Cloud
         memory:  "~{memory_size} MiB"
@@ -836,8 +836,8 @@ task SubsetVcfToPopulation {
     }
 
     meta {
-        author:      "Cristiane Taniguti"
-        email:       "chtaniguti@tamu.edu"
+        author:      "Andrew Maule and Anthropic's Claude AI"
+        email:       "maule2@wisc.edu"
         description: "Parses GBS key files to identify samples belonging to a target pedigree, then uses [bcftools](https://samtools.github.io/bcftools/bcftools.html) to subset the VCF to those samples plus their two parents, recalculate per-population allele and missingness tags, and re-apply missingness/MAF filters."
     }
 
