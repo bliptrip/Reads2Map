@@ -139,8 +139,33 @@ task FiltersReportEmp {
       library(onemap)
       library(Reads2MapTools)
 
+      ## Monkey-patch onemap::est_rf_out to guard against dimension-drop
+      ## when a linkage group has very few markers.  In base R, subsetting
+      ## a matrix to one column silently converts it to a vector, causing
+      ## "incorrect number of dimensions" or "subscript out of bounds"
+      ## inside geno[, c(i, s)].
+      original_est_rf_out <- onemap::est_rf_out
+      patched_est_rf_out <- function(...) {
+        tryCatch(
+          original_est_rf_out(...),
+          error = function(e) {
+            msg <- conditionMessage(e)
+            if (grepl("incorrect number of dimensions|subscript out of bounds", msg)) {
+              warning(paste0(
+                "est_rf_out encountered a degenerate linkage group ",
+                "(likely <= 1 marker): ", msg,
+                ". Returning NULL for this group."))
+              return(NULL)
+            }
+            stop(e)
+          }
+        )
+      }
+      environment(patched_est_rf_out) <- environment(original_est_rf_out)
+      utils::assignInNamespace("est_rf_out", patched_est_rf_out, ns = "onemap")
+
       temp.obj <- readRDS("~{onemap_obj}")
-      
+
       onemap_obj_filtered <- create_filters_report_emp(temp.obj, "~{SNPCall_program}",
                                            "~{CountsFrom}", "~{GenotypeCall_program}",
                                            "~{chromosome}", threshold = NULL)
@@ -441,7 +466,7 @@ task MapsReportEmp {
   }
 
   Int disk_size = ceil((size(sequence_obj, "GiB") * 2))
-  Int memory_size = ceil(size(sequence_obj, "MiB") * 12 + 4000)
+  Int memory_size = ceil(size(sequence_obj, "MiB") * 20 + 8000)
 
   command <<<
     R --vanilla --no-save <<RSCRIPT
@@ -449,11 +474,32 @@ task MapsReportEmp {
       library(Reads2MapTools)
 
       sequence <- readRDS("~{sequence_obj}")
-      
-      if(~{max_cores} > 4) cores = 4 else cores = ~{max_cores}
 
-      times_temp <- system.time(df <- create_map_report_emp(input.seq = sequence, CountsFrom = "~{CountsFrom}",
-                                      SNPCall = "~{SNPCall_program}", GenoCall="~{GenotypeCall_program}", max_cores = cores))
+      # Limit to 2 cores to reduce PSOCK cluster memory overhead.
+      # Each PSOCK worker receives a full serialized copy of the data,
+      # so 4 workers can require 5-6x the input object size just for
+      # inter-process data transfer, causing 'error writing to connection'
+      # in serialize() when memory is exhausted.
+      if(~{max_cores} > 2) cores = 2 else cores = ~{max_cores}
+
+      # Log memory state before the expensive computation
+      cat("Input object size (MB):", object.size(sequence) / 1e6, "\n")
+      cat("Available cores:", cores, "\n")
+      gc_before <- gc(reset = TRUE)
+      cat("Memory used before map (MB):", sum(gc_before[,2]), "\n")
+
+      times_temp <- tryCatch({
+        system.time(df <<- create_map_report_emp(input.seq = sequence, CountsFrom = "~{CountsFrom}",
+                                        SNPCall = "~{SNPCall_program}", GenoCall="~{GenotypeCall_program}", max_cores = cores))
+      }, error = function(e) {
+        gc_after <- gc()
+        cat("ERROR during create_map_report_emp:\n")
+        cat("  Message:", conditionMessage(e), "\n")
+        cat("  Memory used at failure (MB):", sum(gc_after[,2]), "\n")
+        cat("  Call stack:\n")
+        traceback()
+        stop(e)
+      })
 
       vroom::vroom_write(df[[2]], "~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}_map_report.tsv.gz", num_threads = ~{max_cores})
       map_out <- df[[1]]
@@ -472,7 +518,7 @@ task MapsReportEmp {
   runtime {
     docker:"cristaniguti/reads2map:0.0.8"
     singularity:"docker://cristaniguti/reads2map:0.0.8"
-    cpu: if max_cores > 4 then 4 else max_cores 
+    cpu: if max_cores > 2 then 2 else max_cores
     # Cloud
     memory:"~{memory_size} MiB"
     disks:"local-disk " + disk_size + " HDD"
