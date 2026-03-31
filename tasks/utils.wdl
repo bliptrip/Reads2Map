@@ -161,7 +161,18 @@ task ApplyRandomFiltersArray {
     Array[String] vcfs_SNPCall_software
     Array[String] vcfs_Counts_source
     Array[String] vcfs_GenoCall_software
-    String? filters 
+    # Per-genotype exclude filter: genotypes failing this expression are set to
+    # missing (./.) before site-level filtering. Use bcftools filter -e syntax,
+    # e.g. "FORMAT/DP < 5" to mask low-depth individual calls.
+    String? genotype_dp_filter
+    # Site-level include filter: sites not matching this expression are dropped.
+    # Use bcftools view -i syntax, e.g. "QUAL >= 20 & F_MISSING <= 0.25".
+    # Do not include an INFO/DP upper-bound here; use info_dp_sd_multiplier instead.
+    String? filters_include
+    # Paralog filter: remove sites whose INFO/DP exceeds mean + N*SD computed
+    # per-VCF. Defaults to 2 (removes ~2% of sites at the right tail).
+    # Set to 0 to disable.
+    Int info_dp_sd_multiplier = 2
     String? chromosome
   }
 
@@ -169,33 +180,96 @@ task ApplyRandomFiltersArray {
   Int memory_size = ceil(3000 + size(vcfs, "MiB") * 2)
 
   command <<<
+      set -euo pipefail
 
       vcfs=(~{sep = " " vcfs})
       vcfs_snp_software=(~{sep=" " vcfs_SNPCall_software})
       vcfs_counts_source=(~{sep=" " vcfs_Counts_source})
       vcfs_geno_software=(~{sep=" " vcfs_GenoCall_software})
 
+      filter_genotype="~{default="" genotype_dp_filter}"
+      filter_include="~{default="" filters_include}"
+      dp_mult=~{info_dp_sd_multiplier}
+
       for index in ${!vcfs[*]}; do
           if [[ ${vcfs[$index]} != *.gz ]]; then
             cp ${vcfs[$index]} temp.vcf
             bgzip temp.vcf
-          else 
+          else
             cp ${vcfs[$index]} temp.vcf.gz
           fi
-          
           tabix -p vcf temp.vcf.gz
-          bcftools view temp.vcf.gz ~{filters} \
-          -o vcf_filt_${vcfs_snp_software[$index]}_${vcfs_counts_source[$index]}_${vcfs_geno_software[$index]}.vcf
-          bgzip vcf_filt_${vcfs_snp_software[$index]}_${vcfs_counts_source[$index]}_${vcfs_geno_software[$index]}.vcf
-          rm temp.vcf.gz temp.vcf.gz.tbi
-          echo vcf_filt_${vcfs_snp_software[$index]}_${vcfs_counts_source[$index]}_${vcfs_geno_software[$index]}.vcf.gz >> outputs.txt
+
+          # Step 1: set individual genotypes failing the per-genotype filter to
+          # missing (./.) so that F_MISSING is recalculated correctly in step 2.
+          if [ -n "$filter_genotype" ]; then
+            bcftools filter -S . -e "$filter_genotype" temp.vcf.gz -Oz -o step1.vcf.gz
+            tabix -p vcf step1.vcf.gz
+            rm temp.vcf.gz temp.vcf.gz.tbi
+          else
+            mv temp.vcf.gz step1.vcf.gz
+            mv temp.vcf.gz.tbi step1.vcf.gz.tbi
+          fi
+
+          # Step 2: ensure INFO/DP is populated, then compute per-VCF INFO/DP
+          # upper threshold (mean + N*SD) for paralog filtering.
+          # If INFO/DP is missing (e.g. Stacks VCFs), fill it by summing
+          # FORMAT/DP across all samples at each site.
+          full_filter="$filter_include"
+          if [ "$dp_mult" -gt 0 ]; then
+            n_with_dp=$( (bcftools query -f '%INFO/DP\n' step1.vcf.gz 2>/dev/null || true) | awk '$1>0{n++} END{print n+0}')
+            if [ "$n_with_dp" -eq 0 ]; then
+              # INFO/DP is absent or entirely unpopulated (common in Stacks and
+              # updog re-genotyped VCFs). Compute it as the per-site sum of
+              # FORMAT/DP across all samples.
+              #
+              # We cannot use  bcftools +fill-tags -- -t INFO/DP  because the
+              # fill-tags plugin does not recognise INFO/DP as a built-in tag,
+              # and the unqualified custom-expression form  -t 'DP:1=int(sum(DP))'
+              # collides with the existing FORMAT/DP definition in bcftools >=1.13.
+              #
+              # Instead we: (a) strip any stale INFO/DP header, (b) extract
+              # per-sample DP with bcftools query (brackets = FORMAT scope),
+              # (c) sum with awk, and (d) annotate back as INFO/DP.
+              bcftools annotate --remove INFO/DP step1.vcf.gz -Oz -o step1_stripped.vcf.gz
+              tabix -p vcf step1_stripped.vcf.gz
+
+              bcftools query -f '%CHROM\t%POS[\t%DP]\n' step1_stripped.vcf.gz | \
+                awk -F'\t' '{dp=0; for(i=3;i<=NF;i++) if($i!="." && $i+0>0) dp+=$i; print $1"\t"$2"\t"$2"\t"dp}' | \
+                bgzip -c > dp_annot.tsv.gz
+              tabix -s1 -b2 -e2 dp_annot.tsv.gz
+
+              printf '##INFO=<ID=DP,Number=1,Type=Integer,Description="Total read depth summed across samples">\n' > dp_header.txt
+              bcftools annotate -a dp_annot.tsv.gz -h dp_header.txt \
+                -c CHROM,FROM,TO,INFO/DP step1_stripped.vcf.gz -Oz -o step1_filled.vcf.gz
+              tabix -p vcf step1_filled.vcf.gz
+
+              mv step1_filled.vcf.gz step1.vcf.gz
+              mv step1_filled.vcf.gz.tbi step1.vcf.gz.tbi
+              rm step1_stripped.vcf.gz step1_stripped.vcf.gz.tbi \
+                 dp_annot.tsv.gz dp_annot.tsv.gz.tbi dp_header.txt
+            fi
+            dp_threshold=$(bcftools query -f '%INFO/DP\n' step1.vcf.gz | \
+              awk -v mult="$dp_mult" \
+                'NF && $1>0 {n++; s+=$1; s2+=$1*$1}
+                 END {mean=s/n; sd=sqrt(s2/n - mean*mean); printf "%d\n", mean + mult*sd}')
+            dp_expr="INFO/DP <= ${dp_threshold}"
+            full_filter="${full_filter:+${full_filter} & }${dp_expr}"
+          fi
+
+          # Step 3: drop sites that fail the site-level include filter.
+          outname="vcf_filt_${vcfs_snp_software[$index]}_${vcfs_counts_source[$index]}_${vcfs_geno_software[$index]}.vcf"
+          bcftools view ${full_filter:+-i "$full_filter"} step1.vcf.gz -o "$outname"
+          bgzip "$outname"
+          rm step1.vcf.gz step1.vcf.gz.tbi
+          echo "${outname}.gz" >> outputs.txt
       done
 
   >>>
 
   runtime {
-    docker:"lifebitai/bcftools:1.10.2"
-    singularity: "docker://lifebitai/bcftools:1.10.2"
+    docker:"lifebitai/bcftools:1.13"
+    singularity: "docker://lifebitai/bcftools:1.13"
     cpu:1
     # Cloud
     memory:"~{memory_size} MiB"
@@ -810,10 +884,23 @@ task SubsetVcfToPopulation {
 
         SAMPLES=$(cat sample_list.txt)
 
+        # Some callers (e.g. Stacks) omit ##contig header lines, which causes
+        # bcftools view --samples to abort in "sample subset mode" on bcftools ≥1.13.
+        # Fix: inject minimal contig declarations derived from the VCF data itself.
+        INPUT_VCF="~{vcf_file}"
+        if ! bcftools view -h "~{vcf_file}" | grep -q "^##contig"; then
+            bcftools view -h "~{vcf_file}" | grep -v "^#CHROM" > fixed_header.txt
+            bcftools query -f '%CHROM\n' "~{vcf_file}" | sort -u \
+                | awk '{print "##contig=<ID=" $1 ">"}' >> fixed_header.txt
+            bcftools view -h "~{vcf_file}" | grep "^#CHROM" >> fixed_header.txt
+            bcftools reheader -h fixed_header.txt "~{vcf_file}" -o input_fixed.vcf.gz
+            INPUT_VCF="input_fixed.vcf.gz"
+        fi
+
         # Subset VCF → recalculate population-level tags → re-filter
         bcftools view \
             --samples "${SAMPLES}" \
-            "~{vcf_file}" \
+            "${INPUT_VCF}" \
         | bcftools +fill-tags -- -t F_MISSING,MAF,AF \
         | bcftools view \
             --include "F_MISSING <= ~{max_missing} && MAF >= ~{min_maf}" \
