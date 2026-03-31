@@ -144,7 +144,7 @@ task FiltersReportEmp {
       ## a matrix to one column silently converts it to a vector, causing
       ## "incorrect number of dimensions" or "subscript out of bounds"
       ## inside geno[, c(i, s)].
-      original_est_rf_out <- onemap::est_rf_out
+      original_est_rf_out <- onemap:::est_rf_out
       patched_est_rf_out <- function(...) {
         tryCatch(
           original_est_rf_out(...),
@@ -161,7 +161,7 @@ task FiltersReportEmp {
           }
         )
       }
-      environment(patched_est_rf_out) <- environment(original_est_rf_out)
+      environment(patched_est_rf_out) <- asNamespace("onemap")
       utils::assignInNamespace("est_rf_out", patched_est_rf_out, ns = "onemap")
 
       temp.obj <- readRDS("~{onemap_obj}")
