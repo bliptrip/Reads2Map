@@ -488,9 +488,12 @@ task MapsReportEmp {
       gc_before <- gc(reset = TRUE)
       cat("Memory used before map (MB):", sum(gc_before[,2]), "\n")
 
+      df <- NULL
       times_temp <- tryCatch({
-        system.time(df <<- create_map_report_emp(input.seq = sequence, CountsFrom = "~{CountsFrom}",
-                                        SNPCall = "~{SNPCall_program}", GenoCall="~{GenotypeCall_program}", max_cores = cores))
+        system.time({
+          df <<- create_map_report_emp(input.seq = sequence, CountsFrom = "~{CountsFrom}",
+                                          SNPCall = "~{SNPCall_program}", GenoCall="~{GenotypeCall_program}", max_cores = cores)
+        })
       }, error = function(e) {
         gc_after <- gc()
         cat("ERROR during create_map_report_emp:\n")
