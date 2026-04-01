@@ -164,6 +164,33 @@ task FiltersReportEmp {
       environment(patched_est_rf_out) <- asNamespace("onemap")
       utils::assignInNamespace("est_rf_out", patched_est_rf_out, ns = "onemap")
 
+      ## Monkey-patch onemap:::check_linkage to handle NULL returned by the
+      ## patched est_rf_out above.  When est_rf_out returns NULL for a
+      ## degenerate group, check_linkage immediately calls apply(r[[1]], 2, ...)
+      ## on the NULL result, crashing with "dim(X) must have a positive length".
+      ## The fix: catch that error and return all candidate markers as unlinked
+      ## (list(lk=integer(0), unlk=s)), which causes group() to assign them to
+      ## group 0 -- the same path taken when "No group found" is warned normally.
+      original_check_linkage <- onemap:::check_linkage
+      patched_check_linkage <- function(input.seq, max.rf, LOD, s) {
+        tryCatch(
+          original_check_linkage(input.seq, max.rf, LOD, s),
+          error = function(e) {
+            msg <- conditionMessage(e)
+            if (grepl("dim\\(X\\) must have a positive length|incorrect number of dimensions", msg)) {
+              warning(paste0(
+                "check_linkage encountered a degenerate linkage group (s=",
+                paste(s, collapse = ","), "): ", msg,
+                ". Returning all markers as unlinked."))
+              return(list(lk = integer(0), unlk = s))
+            }
+            stop(e)
+          }
+        )
+      }
+      environment(patched_check_linkage) <- asNamespace("onemap")
+      utils::assignInNamespace("check_linkage", patched_check_linkage, ns = "onemap")
+
       temp.obj <- readRDS("~{onemap_obj}")
 
       onemap_obj_filtered <- create_filters_report_emp(temp.obj, "~{SNPCall_program}",
