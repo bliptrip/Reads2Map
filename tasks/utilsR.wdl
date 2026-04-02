@@ -177,7 +177,7 @@ task FiltersReportEmp {
           original_check_linkage(input.seq, max.rf, LOD, s),
           error = function(e) {
             msg <- conditionMessage(e)
-            if (grepl("dim\\(X\\) must have a positive length|incorrect number of dimensions", msg)) {
+            if (grepl("dim[(]X[)] must have a positive length|incorrect number of dimensions", msg)) {
               warning(paste0(
                 "check_linkage encountered a degenerate linkage group (s=",
                 paste(s, collapse = ","), "): ", msg,
