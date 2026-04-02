@@ -515,12 +515,15 @@ task MapsReportEmp {
       gc_before <- gc(reset = TRUE)
       cat("Memory used before map (MB):", sum(gc_before[,2]), "\n")
 
-      df <- NULL
-      times_temp <- tryCatch({
-        system.time({
-          df <<- create_map_report_emp(input.seq = sequence, CountsFrom = "~{CountsFrom}",
-                                          SNPCall = "~{SNPCall_program}", GenoCall="~{GenotypeCall_program}", max_cores = cores)
-        })
+      # Use proc.time() instead of system.time() to avoid super-assignment (<<-).
+      # system.time() uses substitute + eval.parent, and combining that with
+      # tryCatch's handler frames causes <<- to walk up the environment chain
+      # into the package namespace, hitting stats::df (locked binding) instead
+      # of our local df.  proc.time() avoids the issue entirely.
+      t_start <- proc.time()
+      df <- tryCatch({
+        create_map_report_emp(input.seq = sequence, CountsFrom = "~{CountsFrom}",
+                                    SNPCall = "~{SNPCall_program}", GenoCall="~{GenotypeCall_program}", max_cores = cores)
       }, error = function(e) {
         gc_after <- gc()
         cat("ERROR during create_map_report_emp:\n")
@@ -530,6 +533,7 @@ task MapsReportEmp {
         traceback()
         stop(e)
       })
+      times_temp <- proc.time() - t_start
 
       vroom::vroom_write(df[[2]], "~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}_map_report.tsv.gz", num_threads = ~{max_cores})
       map_out <- df[[1]]
