@@ -172,9 +172,9 @@ task FiltersReportEmp {
       ## (list(lk=integer(0), unlk=s)), which causes group() to assign them to
       ## group 0 -- the same path taken when "No group found" is warned normally.
       original_check_linkage <- onemap:::check_linkage
-      patched_check_linkage <- function(input.seq, max.rf, LOD, s) {
+      patched_check_linkage <- function(i, s, ...) {
         tryCatch(
-          original_check_linkage(input.seq, max.rf, LOD, s),
+          original_check_linkage(i = i, s = s, ...),
           error = function(e) {
             msg <- conditionMessage(e)
             if (grepl("dim[(]X[)] must have a positive length|incorrect number of dimensions", msg)) {
