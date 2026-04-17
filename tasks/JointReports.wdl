@@ -16,7 +16,7 @@ task JointAllReports{
     Int ploidy
   }
 
-  Int memory_size = 4000
+  Int memory_size = 32000
 
   command <<<
      R --vanilla --no-save <<RSCRIPT

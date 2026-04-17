@@ -12,11 +12,14 @@ task HaplotypeCaller {
     Array[File] bams_index
     Int ploidy
     Int chunk_size
-    Int max_ram = 10000
+    Int max_ram = 10000  # Default; if changed, update default_max_ram below to match.
   }
 
   Int disk_size = ceil((size(bams, "GiB") + 30) + size(reference_fasta, "GiB")) + 20
-  Int memory_min = ceil((max_ram/chunk_size)/5)
+  # Cap memory_min at what the default max_ram produces so that raising max_ram
+  # only grows -Xmx without inflating -Xms unnecessarily. Keep in sync with input default above.
+  Int default_max_ram = 10000
+  Int memory_min = if max_ram > default_max_ram then ceil((default_max_ram/chunk_size)/5) else ceil((max_ram/chunk_size)/5)
   Int memory_max = ceil(max_ram/chunk_size - memory_min)
   Int memory_size = max_ram
   Int max_cores = ceil(chunk_size * 4 + 2)
@@ -42,7 +45,8 @@ task HaplotypeCaller {
         -I "$bam" \
         -O "vcfs/${out_name}.g.vcf.gz" \
         --max-alternate-alleles 1 \
-        --max-reads-per-alignment-start 0 &
+        --max-reads-per-alignment-start 0 \
+        --disable-read-filter NotDuplicateReadFilter &
       pids+=($!)
     done
 
@@ -82,11 +86,14 @@ task ImportGVCFs  {
     File reference_fai
     File reference_dict
     String interval
-    Int max_ram = 26000
+    Int max_ram = 26000  # Default; if changed, update default_max_ram below to match.
   }
 
   Int disk_size = ceil(size(vcfs, "GiB") * 1.5 + size(reference_fasta, "GiB") * 1.5)
-  Int memory_min = ceil(max_ram/3.85)
+  # Cap memory_min at what the default max_ram produces so that raising max_ram
+  # only grows -Xmx without inflating -Xms unnecessarily. Keep in sync with input default above.
+  Int default_max_ram = 26000
+  Int memory_min = if max_ram > default_max_ram then ceil(default_max_ram/3.85) else ceil(max_ram/3.85)
   Int memory_max = ceil(max_ram - memory_min)
   Int memory_size = max_ram
 
@@ -147,11 +154,14 @@ task GenotypeGVCFs   {
     File reference_fai
     File reference_dict
     String interval
-    Int max_ram = 26000
+    Int max_ram = 26000  # Default; if changed, update default_max_ram below to match.
   }
 
   Int disk_size = ceil(size(reference_fasta, "GiB") * 1.5 + size(workspace_tar, "GiB") * 1.5)
-  Int memory_min = ceil(max_ram/3.85)
+  # Cap memory_min at what the default max_ram produces so that raising max_ram
+  # only grows -Xmx without inflating -Xms unnecessarily. Keep in sync with input default above.
+  Int default_max_ram = 26000
+  Int memory_min = if max_ram > default_max_ram then ceil(default_max_ram/3.85) else ceil(max_ram/3.85)
   Int memory_max = ceil(max_ram - memory_min)
   Int memory_size = max_ram
 

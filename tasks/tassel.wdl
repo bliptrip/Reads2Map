@@ -196,12 +196,15 @@ task TasselBeforeAlign {
         Array[File] fastq
         String enzyme = "ApeKI"
         File key_file
-        Int max_ram = 10000        
+        Int max_ram = 10000  # Default; if changed, update default_max_ram below to match.
     }
 
     Int disk_size = ceil(size(fastq, "GiB"))
-    Int memory_min = ceil(max_ram/3)
-    Int memory_max = max_ram
+    # Cap memory_min at what the default max_ram produces so that raising max_ram
+    # only grows -Xmx without inflating -Xms unnecessarily. Keep in sync with input default above.
+    Int default_max_ram = 10000
+    Int memory_min = if max_ram > default_max_ram then ceil(default_max_ram/3) else ceil(max_ram/3)
+    Int memory_max = max_ram - memory_min  # Reserve memory_min worth of headroom for JVM non-heap overhead.
 
   command <<<
 
@@ -247,15 +250,18 @@ task TasselAfterAlign {
     input {
       File tassel_database
       File bam
-      Int max_ram = 10000
+      Int max_ram = 10000  # Default; if changed, update default_max_ram below to match.
       String enzyme
       File key_file
-      Array[File] fastq        
+      Array[File] fastq
     }
 
     Int disk_size = ceil(size(tassel_database, "GiB"))
-    Int memory_min = ceil(max_ram/3)
-    Int memory_max = max_ram 
+    # Cap memory_min at what the default max_ram produces so that raising max_ram
+    # only grows -Xmx without inflating -Xms unnecessarily. Keep in sync with input default above.
+    Int default_max_ram = 10000
+    Int memory_min = if max_ram > default_max_ram then ceil(default_max_ram/3) else ceil(max_ram/3)
+    Int memory_max = max_ram - memory_min  # Reserve memory_min worth of headroom for JVM non-heap overhead.
 
     command <<<
 

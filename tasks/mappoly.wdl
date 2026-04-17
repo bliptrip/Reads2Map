@@ -157,7 +157,7 @@ task MappolyReport {
       info <- rbind(info, info_temp)
       
       
-      if("TRUE"){
+      if(as.logical("~{filt_segr}")){
         pval.bonf <- 0.05/dat[["n.mrk"]]
         mrks.chi.filt <- filter_segregation(dat, 
                                             chisq.pval.thres =  pval.bonf, 
