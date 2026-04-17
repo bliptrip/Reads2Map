@@ -114,6 +114,7 @@ workflow onemapMapsEmp {
             SNPCall_program = SNPCall_program,
             GenotypeCall_program = SetProbs.probs_onemap_obj_names[item],
             CountsFrom = CountsFrom,
+            chromosome = chromosome,
             max_cores = max_cores
           }
    }

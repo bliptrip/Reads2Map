@@ -222,7 +222,7 @@ task FiltersReportEmp {
   }
 
   output {
-    File filters_report = "~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}_filters_report.tsv.gz"
+    File filters_report = "~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}_~{chromosome}_filters_report.tsv.gz"
     File onemap_obj_filtered = "onemap_obj_filtered.rds"
   }
 }
@@ -440,17 +440,20 @@ task CheckDepths {
     R --vanilla --no-save <<RSCRIPT
       library(onemap)
 
-      df <- readRDS("~{onemap_obj}")
-      
+      onemap_raw <- readRDS("~{onemap_obj}")
+      chrom_lookup <- setNames(onemap_raw$CHROM, colnames(onemap_raw$geno))
+
       vcf <- readRDS("~{vcfR_obj}")
-      
-      p <- create_depths_profile(onemap.obj = df, vcfR.object = vcf, parent1 = "~{parent1}",
+
+      p <- create_depths_profile(onemap.obj = onemap_raw, vcfR.object = vcf, parent1 = "~{parent1}",
       parent2 = "~{parent2}", vcf.par = "AD",recovering = FALSE, GTfrom = "vcf", alpha=0.1,
       rds.file = paste0("vcf_depths.rds"))
 
       df <- readRDS(paste0("vcf_depths.rds"))
       df <- cbind(SNPCall = "~{SNPCall_program}", CountsFrom = "~{CountsFrom}",
                   GenoCall="~{GenotypeCall_program}", df ~{", seed=" + seed} ~{", depth= " + depth})
+
+      if ("mks" %in% colnames(df)) df$CHROM <- chrom_lookup[df$mks]
 
       vroom::vroom_write(df, "~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}_errors_report.tsv.gz", num_threads = ~{max_cores})
 
@@ -489,6 +492,7 @@ task MapsReportEmp {
    String SNPCall_program
    String GenotypeCall_program
    String CountsFrom
+   String chromosome
    Int max_cores
   }
 
@@ -502,12 +506,11 @@ task MapsReportEmp {
 
       sequence <- readRDS("~{sequence_obj}")
 
-      # Limit to 2 cores to reduce PSOCK cluster memory overhead.
-      # Each PSOCK worker receives a full serialized copy of the data,
-      # so 4 workers can require 5-6x the input object size just for
-      # inter-process data transfer, causing 'error writing to connection'
-      # in serialize() when memory is exhausted.
-      if(~{max_cores} > 2) cores = 2 else cores = ~{max_cores}
+      # TEMPORARY FIX: force single-core to avoid PSOCK worker crashese
+      # PSOCK workers die mid-serialization when receiving large objects (~740 MB)
+      # over local sockets, even when container memory is sufficient.
+      # Real fix: set max_cores = 1 in the pipeline inputs JSON.
+      cores = 1
 
       # Log memory state before the expensive computation
       cat("Input object size (MB):", object.size(sequence) / 1e6, "\n")
@@ -535,16 +538,18 @@ task MapsReportEmp {
       })
       times_temp <- proc.time() - t_start
 
-      vroom::vroom_write(df[[2]], "~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}_map_report.tsv.gz", num_threads = ~{max_cores})
+      df[[2]]$CHROM <- df[[1]]$data.name$CHROM[df[[1]]$seq.num]
+
+      vroom::vroom_write(df[[2]], "~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}_~{chromosome}_map_report.tsv.gz", num_threads = ~{max_cores})
       map_out <- df[[1]]
-      saveRDS(map_out,  file = "map_~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}.rds")
+      saveRDS(map_out,  file = "map_~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}_~{chromosome}.rds")
 
       times <- data.frame(SNPCall = "~{SNPCall_program}",
                           CountsFrom = "~{CountsFrom}",
                           GenoCall =  "~{GenotypeCall_program}",
                           time = times_temp[3])
 
-      vroom::vroom_write(times, "~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}_times_report.tsv.gz", num_threads = ~{max_cores})
+      vroom::vroom_write(times, "~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}_~{chromosome}_times_report.tsv.gz", num_threads = ~{max_cores})
 
     RSCRIPT
   >>>
@@ -552,7 +557,7 @@ task MapsReportEmp {
   runtime {
     docker:"cristaniguti/reads2map:0.0.8"
     singularity:"docker://cristaniguti/reads2map:0.0.8"
-    cpu: if max_cores > 2 then 2 else max_cores
+    cpu: 1  # TEMPORARY: matches forced cores = 1 above
     # Cloud
     memory:"~{memory_size} MiB"
     disks:"local-disk " + disk_size + " HDD"
@@ -569,9 +574,9 @@ task MapsReportEmp {
   }
 
   output {
-    File maps_report = "~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}_map_report.tsv.gz"
-    File maps_RData = "map_~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}.rds"
-    File times = "~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}_times_report.tsv.gz"
+    File maps_report = "~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}_~{chromosome}_map_report.tsv.gz"
+    File maps_RData = "map_~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}_~{chromosome}.rds"
+    File times = "~{SNPCall_program}_~{CountsFrom}_~{GenotypeCall_program}_~{chromosome}_times_report.tsv.gz"
   }
 }
 
