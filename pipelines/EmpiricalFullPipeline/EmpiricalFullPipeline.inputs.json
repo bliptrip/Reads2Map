@@ -21,18 +21,6 @@
         "chromosomes":   null,
         "multiallelics": false
       }
-    },
-    {
-      "pedigree":          "STxMQ",
-      "pedigree_aliases":  ["MQxST"],
-      "dataset": {
-        "name":          "STxMQ",
-        "parent1":       "Stevens",
-        "parent2":       "Mullica_Queen",
-        "cross":         "outcross",
-        "chromosomes":   null,
-        "multiallelics": false
-      }
     }
   ],
 
