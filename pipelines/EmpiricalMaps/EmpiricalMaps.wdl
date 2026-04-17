@@ -14,7 +14,6 @@ import "../../subworkflows/gusmap_maps_empirical.wdl" as gusmap
 import "../../subworkflows/mappoly_maps_empirical.wdl" as mappoly_sub
 
 workflow Maps {
-
     input {
         Dataset dataset
         Array[File] vcfs
@@ -28,7 +27,9 @@ workflow Maps {
         Boolean replaceADbyMissing 
         File? gatk_vcf_multi
         String gatk_mchap
-        String? filters
+        String? genotype_dp_filter
+        String? filters_include
+        Int info_dp_sd_multiplier = 2
         Int max_cores
         Int ploidy
         Float prob_thres = 0.8
@@ -36,18 +37,20 @@ workflow Maps {
         Array[String] global_errors = ["0.05"]
         Boolean genoprob_error = true
         Array[String] genoprob_global_errors = ["0.05"]
-        Int? repetitions 
-        Int? sample_size 
+        Int? repetitions
+        Int? sample_size
     }
 
-    if (defined(filters)) {
+    if (defined(genotype_dp_filter) || defined(filters_include)) {
         call utils.ApplyRandomFiltersArray {
             input:
                 vcfs = vcfs,
                 vcfs_SNPCall_software = vcfs_software,
                 vcfs_Counts_source = vcfs_counts_source,
                 vcfs_GenoCall_software = range(length(vcfs_software)),
-                filters = filters
+                genotype_dp_filter    = genotype_dp_filter,
+                filters_include      = filters_include,
+                info_dp_sd_multiplier = info_dp_sd_multiplier
         }
     }
 

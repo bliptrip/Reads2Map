@@ -132,7 +132,7 @@ workflow SimulatedSingleFamily {
                 vcf_file = splitgeno.biallelics,
                 parent1 = "P1",
                 parent2 = "P2",
-                replaceADbyMissing = "TRUE"
+                replaceADbyMissing = true
         }
 
         call genotyping.onemapMaps as updogMaps {

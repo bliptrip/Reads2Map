@@ -16,7 +16,7 @@ workflow SNPCalling {
     Array[File]  trimmed_fastqs
     ReferenceFasta references
     Int max_cores
-    Int max_ram
+    Int? max_ram
     Int chunk_size
     Boolean rm_dupli = false
     String? P1

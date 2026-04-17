@@ -23,13 +23,13 @@ workflow EmpiricalReads {
         Array[File] key_files
 
         Int max_cores
-        Int max_ram
+        Int? max_ram
         Int chunk_size
         Boolean rm_dupli = false
         Boolean gatk_mchap = false
         Boolean hardfilters = true
         Boolean replaceAD = true
-        String replaceADbyMissing = "TRUE" # Boolean inside R
+        Boolean replaceADbyMissing = true
         Boolean run_gatk = true
         Boolean run_freebayes = true
         Boolean run_tassel = true
@@ -38,7 +38,9 @@ workflow EmpiricalReads {
         String? enzyme
         Int ploidy = 2
         Int n_chrom
-        String? filters
+        String? genotype_dp_filter
+        String? filters_include
+        Int info_dp_sd_multiplier = 2
         Float? prob_thres
         String? filt_segr
         Boolean filter_noninfo = false
@@ -115,7 +117,9 @@ workflow EmpiricalReads {
                 gatk_vcf_multi     = SubsetMultiVcf.subset_vcf,
                 gatk_mchap         = gatk_mchap,
                 filter_noninfo     = filter_noninfo,
-                filters            = filters,
+                genotype_dp_filter    = genotype_dp_filter,
+                filters_include      = filters_include,
+                info_dp_sd_multiplier = info_dp_sd_multiplier,
                 max_cores          = max_cores,
                 replaceADbyMissing    = replaceADbyMissing,
                 ploidy                = ploidy,

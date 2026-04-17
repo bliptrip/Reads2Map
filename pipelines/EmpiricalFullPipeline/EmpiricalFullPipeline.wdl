@@ -39,7 +39,7 @@ workflow EmpiricalFullPipeline {
         # Compute resources
         # ---------------------------------------------------------------
         Int max_cores
-        Int max_ram
+        Int? max_ram
         Int chunk_size
 
         # ---------------------------------------------------------------
@@ -60,8 +60,10 @@ workflow EmpiricalFullPipeline {
         # ---------------------------------------------------------------
         # Mapping options
         # ---------------------------------------------------------------
-        String  replaceADbyMissing = "TRUE"   # passed as string into R
-        String? filters
+        Boolean replaceADbyMissing = true
+        String? genotype_dp_filter
+        String? filters_include
+        Int info_dp_sd_multiplier = 2
         Float?  prob_thres
         String? filt_segr
         Boolean filter_noninfo         = false
@@ -125,7 +127,9 @@ workflow EmpiricalFullPipeline {
             n_chrom            = n_chrom,
             enzyme             = spec.enzyme,
             replaceADbyMissing     = replaceADbyMissing,
-            filters                = filters,
+            genotype_dp_filter     = genotype_dp_filter,
+            filters_include        = filters_include,
+            info_dp_sd_multiplier  = info_dp_sd_multiplier,
             prob_thres             = prob_thres,
             filt_segr              = filt_segr,
             filter_noninfo         = filter_noninfo,

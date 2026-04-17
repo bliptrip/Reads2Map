@@ -14,7 +14,7 @@ workflow TasselGenotyping {
         Array[File]  trimmed_fastqs
         ReferenceFasta references
         Int max_cores
-        Int max_ram
+        Int? max_ram
         String enzyme = "ApeKI"
     }
 
