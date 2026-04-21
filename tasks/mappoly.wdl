@@ -15,6 +15,7 @@ task MappolyReport {
     Int ploidy
     String filt_segr = "TRUE"
     Array[String] global_errors = ["0.05"]
+    String? chromosome
   }
 
   Int disk_size = ceil(size(vcf_file, "GiB") * 2)
@@ -159,15 +160,28 @@ task MappolyReport {
       
       if(as.logical("~{filt_segr}")){
         pval.bonf <- 0.05/dat[["n.mrk"]]
-        mrks.chi.filt <- filter_segregation(dat, 
-                                            chisq.pval.thres =  pval.bonf, 
+        mrks.chi.filt <- filter_segregation(dat,
+                                            chisq.pval.thres =  pval.bonf,
                                             inter = FALSE)
-        
+
         seq.init <- make_seq_mappoly(mrks.chi.filt)
       } else {
         seq.init <- make_seq_mappoly(dat, "all")
       }
-      
+
+      # Filter to a specific chromosome when requested
+      chr_suffix <- ""
+      if("~{default='' chromosome}" != "") {
+        chr_suffix <- paste0("_", "~{default='' chromosome}")
+        chr_idx <- which(seq.init[["chrom"]] == "~{default='' chromosome}")
+        if(length(chr_idx) > 0) {
+          seq.init <- make_seq_mappoly(seq.init, chr_idx)
+        } else {
+          # No markers on this chromosome — downstream size check will skip mapping
+          seq.init[["seq.mrk.names"]] <- character(0)
+        }
+      }
+
       info_temp <- data.frame(dat = paste0("~{SNPCall_program}", "_", "~{GenotypeCall_program}", "_", "~{CountsFrom}"), 
                               step = "segr filtered", 
                               n.markers = length(seq.init[["seq.mrk.names"]]), 
@@ -265,16 +279,16 @@ task MappolyReport {
        maps <- 1
       }
 
-      saveRDS(summaries, file= "~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}_summaries.rds")
-      saveRDS(info, file="~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}_info.rds")
-      saveRDS(dat, file= "~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}_dat.rds")
-      saveRDS(mat, file="~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}_mat2.rds")
-      saveRDS(maps, file="~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}_maps.rds")
-      
+      saveRDS(summaries, file= paste0("~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}", chr_suffix, "_summaries.rds"))
+      saveRDS(info, file=paste0("~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}", chr_suffix, "_info.rds"))
+      saveRDS(dat, file= paste0("~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}", chr_suffix, "_dat.rds"))
+      saveRDS(mat, file=paste0("~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}", chr_suffix, "_mat2.rds"))
+      saveRDS(maps, file=paste0("~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}", chr_suffix, "_maps.rds"))
+
       system("mkdir results")
       system("mv *.rds  results")
-      
-      system(paste0("tar -czvf ", "~{SNPCall_program}", "_", "~{GenotypeCall_program}", "_", "~{CountsFrom}","_poly_results.tar.gz results"))
+
+      system(paste0("tar -czvf ", "~{SNPCall_program}", "_", "~{GenotypeCall_program}", "_", "~{CountsFrom}", chr_suffix, "_poly_results.tar.gz results"))
 
     RSCRIPT
   >>>
@@ -299,6 +313,6 @@ task MappolyReport {
   }
 
   output {
-    File results = "~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}_poly_results.tar.gz"
+    File results = "~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}~{if defined(chromosome) then '_' + select_first([chromosome]) else ''}_poly_results.tar.gz"
   }
 }

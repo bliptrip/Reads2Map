@@ -14,12 +14,13 @@ workflow MappolyMapsEmp {
     String parent1
     String parent2
     Float? prob_thres
-    Int? repetitions 
-    Int? sample_size 
+    Int? repetitions
+    Int? sample_size
     Int max_cores
     Int ploidy
     String? filt_segr
     Array[String] global_errors
+    String? chromosome
   }
 
   call utilsR.ReGenotyping {
@@ -49,7 +50,8 @@ workflow MappolyMapsEmp {
       filt_segr = filt_segr,
       global_errors = global_errors,
       repetitions = repetitions,
-      sample_size = sample_size
+      sample_size = sample_size,
+      chromosome = chromosome
   }
 
    output {

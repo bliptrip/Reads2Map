@@ -192,82 +192,88 @@ workflow Maps {
         }
 
         if(ploidy > 2){
-            if(run_updog){
-                call mappoly_sub.MappolyMapsEmp as updogPolyMaps {
-                    input:
-                        vcf_file = vcf_up,
-                        SNPCall_program = vcfs_software[idx],
-                        GenotypeCall_program = "updog",
-                        CountsFrom = vcfs_counts_source[idx],
-                        cross = "F1",
-                        parent1 = dataset.parent1,
-                        parent2 = dataset.parent2,
-                        max_cores = max_cores,
-                        ploidy = ploidy,
-                        prob_thres = prob_thres,
-                        filt_segr = filt_segr,
-                        global_errors = global_errors,
-                        repetitions = repetitions,
-                        sample_size = sample_size
+            scatter (chrom in chromosomes_to_use) {
+                if(run_updog){
+                    call mappoly_sub.MappolyMapsEmp as updogPolyMaps {
+                        input:
+                            vcf_file = vcf_up,
+                            SNPCall_program = vcfs_software[idx],
+                            GenotypeCall_program = "updog",
+                            CountsFrom = vcfs_counts_source[idx],
+                            cross = "F1",
+                            parent1 = dataset.parent1,
+                            parent2 = dataset.parent2,
+                            max_cores = max_cores,
+                            ploidy = ploidy,
+                            prob_thres = prob_thres,
+                            filt_segr = filt_segr,
+                            global_errors = global_errors,
+                            repetitions = repetitions,
+                            sample_size = sample_size,
+                            chromosome = chrom
+                    }
                 }
-            }
 
-            if(run_polyrad){
-                call mappoly_sub.MappolyMapsEmp as polyradPolyMaps {
-                    input:
-                        vcf_file = vcf_up,
-                        SNPCall_program = vcfs_software[idx],
-                        GenotypeCall_program = "polyrad",
-                        CountsFrom = vcfs_counts_source[idx],
-                        cross = "F1",
-                        parent1 = dataset.parent1,
-                        parent2 = dataset.parent2,
-                        max_cores = max_cores,
-                        ploidy = ploidy,
-                        prob_thres = prob_thres,
-                        filt_segr = filt_segr,
-                        global_errors = global_errors,
-                        repetitions = repetitions,
-                        sample_size = sample_size
+                if(run_polyrad){
+                    call mappoly_sub.MappolyMapsEmp as polyradPolyMaps {
+                        input:
+                            vcf_file = vcf_up,
+                            SNPCall_program = vcfs_software[idx],
+                            GenotypeCall_program = "polyrad",
+                            CountsFrom = vcfs_counts_source[idx],
+                            cross = "F1",
+                            parent1 = dataset.parent1,
+                            parent2 = dataset.parent2,
+                            max_cores = max_cores,
+                            ploidy = ploidy,
+                            prob_thres = prob_thres,
+                            filt_segr = filt_segr,
+                            global_errors = global_errors,
+                            repetitions = repetitions,
+                            sample_size = sample_size,
+                            chromosome = chrom
+                    }
                 }
-            }
-            
-            if(run_supermassa){
-                call mappoly_sub.MappolyMapsEmp as supermassaPolyMaps {
-                    input:
-                        vcf_file = vcf_up,
-                        SNPCall_program = vcfs_software[idx],
-                        GenotypeCall_program = "supermassa",
-                        CountsFrom = vcfs_counts_source[idx],
-                        cross = "F1",
-                        parent1 = dataset.parent1,
-                        parent2 = dataset.parent2,
-                        max_cores = max_cores,
-                        ploidy = ploidy,
-                        prob_thres = prob_thres,
-                        filt_segr = filt_segr,
-                        global_errors = global_errors,
-                        repetitions = repetitions,
-                        sample_size = sample_size
-                }
-            }
 
-            if(vcfs_counts_source[idx] != "bam" && vcfs_software[idx] != "stacks" && vcfs_software[idx] != "tassel"){
-                call mappoly_task.MappolyReport {
-                    input:
-                        vcf_file = vcf_up,
-                        SNPCall_program = vcfs_software[idx],
-                        GenotypeCall_program = "SNPCaller",
-                        CountsFrom = vcfs_counts_source[idx],
-                        parent1 = dataset.parent1,
-                        parent2 = dataset.parent2,
-                        max_cores = max_cores,
-                        ploidy = ploidy,
-                        prob_thres = prob_thres,
-                        filt_segr = filt_segr,
-                        global_errors = global_errors,
-                        repetitions = repetitions,
-                        sample_size = sample_size
+                if(run_supermassa){
+                    call mappoly_sub.MappolyMapsEmp as supermassaPolyMaps {
+                        input:
+                            vcf_file = vcf_up,
+                            SNPCall_program = vcfs_software[idx],
+                            GenotypeCall_program = "supermassa",
+                            CountsFrom = vcfs_counts_source[idx],
+                            cross = "F1",
+                            parent1 = dataset.parent1,
+                            parent2 = dataset.parent2,
+                            max_cores = max_cores,
+                            ploidy = ploidy,
+                            prob_thres = prob_thres,
+                            filt_segr = filt_segr,
+                            global_errors = global_errors,
+                            repetitions = repetitions,
+                            sample_size = sample_size,
+                            chromosome = chrom
+                    }
+                }
+
+                if(vcfs_counts_source[idx] != "bam" && vcfs_software[idx] != "stacks" && vcfs_software[idx] != "tassel"){
+                    call mappoly_task.MappolyReport {
+                        input:
+                            vcf_file = vcf_up,
+                            SNPCall_program = vcfs_software[idx],
+                            GenotypeCall_program = "SNPCaller",
+                            CountsFrom = vcfs_counts_source[idx],
+                            parent1 = dataset.parent1,
+                            parent2 = dataset.parent2,
+                            max_cores = max_cores,
+                            ploidy = ploidy,
+                            prob_thres = prob_thres,
+                            filt_segr = filt_segr,
+                            global_errors = global_errors,
+                            repetitions = repetitions,
+                            sample_size = sample_size,
+                            chromosome = chrom
+                    }
                 }
             }
         }
@@ -296,17 +302,23 @@ workflow Maps {
     if(defined(gusmapMapsEmp.tar_gz_report)){
         Array[File] gusmap_results = select_all(gusmapMapsEmp.tar_gz_report)
     }
-    if(defined(MappolyReport.results)){
-        Array[File] snpcaller_poly_results = select_all(MappolyReport.results)
+    # poly callers are inside scatter(chrom), so their outputs are Array[Array[File?]?] —
+    # strip outer optionals, flatten, then strip inner optionals to get a flat Array[File].
+    Array[File] snpcaller_poly_flat = select_all(flatten(select_all(MappolyReport.results)))
+    if (length(snpcaller_poly_flat) > 0) {
+        Array[File] snpcaller_poly_results = snpcaller_poly_flat
     }
-    if(defined(updogPolyMaps.tar_gz_report)){
-        Array[File] updog_poly_results = select_all(updogPolyMaps.tar_gz_report)
+    Array[File] updog_poly_flat = select_all(flatten(select_all(updogPolyMaps.tar_gz_report)))
+    if (length(updog_poly_flat) > 0) {
+        Array[File] updog_poly_results = updog_poly_flat
     }
-    if(defined(polyradPolyMaps.tar_gz_report)){
-        Array[File] polyrad_poly_results = select_all(polyradPolyMaps.tar_gz_report)
+    Array[File] polyrad_poly_flat = select_all(flatten(select_all(polyradPolyMaps.tar_gz_report)))
+    if (length(polyrad_poly_flat) > 0) {
+        Array[File] polyrad_poly_results = polyrad_poly_flat
     }
-    if(defined(supermassaPolyMaps.tar_gz_report)){
-        Array[File] supermassa_poly_results = select_all(supermassaPolyMaps.tar_gz_report)
+    Array[File] supermassa_poly_flat = select_all(flatten(select_all(supermassaPolyMaps.tar_gz_report)))
+    if (length(supermassa_poly_flat) > 0) {
+        Array[File] supermassa_poly_results = supermassa_poly_flat
     }
     
     # Compress files
