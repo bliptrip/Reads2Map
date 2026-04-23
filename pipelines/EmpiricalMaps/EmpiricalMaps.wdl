@@ -37,8 +37,8 @@ workflow Maps {
         Array[String] global_errors = ["0.05"]
         Boolean genoprob_error = true
         Array[String] genoprob_global_errors = ["0.05"]
-        Int? repetitions
-        Int? sample_size
+        Int repetitions = 100
+        Int sample_size = 30
     }
 
     if (defined(genotype_dp_filter) || defined(filters_include)) {
@@ -87,221 +87,92 @@ workflow Maps {
 
         File vcf_up = select_first([RemoveNonInformative.vcf_filtered, splitgeno.biallelics])
 
-        if(ploidy == 2) {
-            scatter (chrom in chromosomes_to_use) {
-                if(run_updog){
-                    call genotyping.onemapMapsEmp as updogMaps {
-                        input:
-                            vcf_file = vcf_up,
-                            SNPCall_program = vcfs_software[idx],
-                            GenotypeCall_program = "updog",
-                            CountsFrom = vcfs_counts_source[idx],
-                            cross = dataset.cross,
-                            parent1 = dataset.parent1,
-                            parent2 = dataset.parent2,
-                            chromosome = chrom,
-                            multiallelics = dataset.multiallelics,
-                            multiallelics_file = splitgeno.multiallelics,
-                            max_cores = max_cores,
-                            ploidy = ploidy,
-                            global_errors = global_errors,
-                            genoprob_error = genoprob_error,
-                            prob_thres = prob_thres,
-                            genoprob_global_errors = genoprob_global_errors
-                    }
-                }
-
-                if(run_supermassa){
-                    call genotyping.onemapMapsEmp as supermassaMaps {
-                        input:
-                            vcf_file = vcf_up,
-                            SNPCall_program = vcfs_software[idx],
-                            GenotypeCall_program = "supermassa",
-                            CountsFrom = vcfs_counts_source[idx],
-                            cross = dataset.cross,
-                            parent1 = dataset.parent1,
-                            parent2 = dataset.parent2,
-                            chromosome = chrom,
-                            multiallelics = dataset.multiallelics,
-                            multiallelics_file = splitgeno.multiallelics,
-                            max_cores = max_cores,
-                            ploidy = ploidy,
-                            global_errors = global_errors,
-                            genoprob_error = genoprob_error,
-                            prob_thres = prob_thres,
-                            genoprob_global_errors = genoprob_global_errors
-                    }
-                }
-
-                if(run_polyrad){
-                    call genotyping.onemapMapsEmp as polyradMaps {
-                        input:
-                            vcf_file = vcf_up,
-                            SNPCall_program = vcfs_software[idx],
-                            GenotypeCall_program = "polyrad",
-                            CountsFrom = vcfs_counts_source[idx],
-                            cross = dataset.cross,
-                            parent1 = dataset.parent1,
-                            parent2 = dataset.parent2,
-                            chromosome = chrom,
-                            multiallelics = dataset.multiallelics,
-                            multiallelics_file = splitgeno.multiallelics,
-                            max_cores = max_cores,
-                            ploidy = ploidy,
-                            global_errors = global_errors,
-                            genoprob_error = genoprob_error,
-                            prob_thres = prob_thres,
-                            genoprob_global_errors = genoprob_global_errors
-                    }
-                }
-
-                if(vcfs_counts_source[idx] != "bam"){
-                    call snpcaller.SNPCallerMapsEmp {
-                        input:
-                            vcf_file = splitgeno.biallelics,
-                            cross = dataset.cross,
-                            SNPCall_program = vcfs_software[idx],
-                            GenotypeCall_program = "SNPCaller",
-                            CountsFrom = vcfs_counts_source[idx],
-                            parent1 = dataset.parent1,
-                            parent2 = dataset.parent2,
-                            chromosome = chrom,
-                            multiallelics = dataset.multiallelics,
-                            max_cores = max_cores,
-                            multiallelics_file = splitgeno.multiallelics,
-                            global_errors = global_errors,
-                            genoprob_error = genoprob_error,
-                            prob_thres = prob_thres,
-                            genoprob_global_errors = genoprob_global_errors
-                    }
-                }
-            }
-
-            if(run_gusmap){
-                call gusmap.gusmapMapsEmp {
-                        input:
+        scatter (chrom in chromosomes_to_use) {
+            if(run_updog) {
+                call mappoly_sub.MappolyMapsEmp as updogPolyMaps {
+                    input:
                         vcf_file = vcf_up,
                         SNPCall_program = vcfs_software[idx],
+                        GenotypeCall_program = "updog",
                         CountsFrom = vcfs_counts_source[idx],
-                        GenotypeCall_program = "gusmap",
+                        cross = "F1",
                         parent1 = dataset.parent1,
                         parent2 = dataset.parent2,
-                        max_cores = max_cores
+                        max_cores = max_cores,
+                        ploidy = ploidy,
+                        prob_thres = prob_thres,
+                        filt_segr = filt_segr,
+                        global_errors = global_errors,
+                        repetitions = repetitions,
+                        sample_size = sample_size,
+                        chromosome = chrom
                 }
             }
-        }
 
-        if(ploidy > 2){
-            scatter (chrom in chromosomes_to_use) {
-                if(run_updog){
-                    call mappoly_sub.MappolyMapsEmp as updogPolyMaps {
-                        input:
-                            vcf_file = vcf_up,
-                            SNPCall_program = vcfs_software[idx],
-                            GenotypeCall_program = "updog",
-                            CountsFrom = vcfs_counts_source[idx],
-                            cross = "F1",
-                            parent1 = dataset.parent1,
-                            parent2 = dataset.parent2,
-                            max_cores = max_cores,
-                            ploidy = ploidy,
-                            prob_thres = prob_thres,
-                            filt_segr = filt_segr,
-                            global_errors = global_errors,
-                            repetitions = repetitions,
-                            sample_size = sample_size,
-                            chromosome = chrom
-                    }
+            if(run_polyrad){
+                call mappoly_sub.MappolyMapsEmp as polyradPolyMaps {
+                    input:
+                        vcf_file = vcf_up,
+                        SNPCall_program = vcfs_software[idx],
+                        GenotypeCall_program = "polyrad",
+                        CountsFrom = vcfs_counts_source[idx],
+                        cross = "F1",
+                        parent1 = dataset.parent1,
+                        parent2 = dataset.parent2,
+                        max_cores = max_cores,
+                        ploidy = ploidy,
+                        prob_thres = prob_thres,
+                        filt_segr = filt_segr,
+                        global_errors = global_errors,
+                        repetitions = repetitions,
+                        sample_size = sample_size,
+                        chromosome = chrom
                 }
+            }
 
-                if(run_polyrad){
-                    call mappoly_sub.MappolyMapsEmp as polyradPolyMaps {
-                        input:
-                            vcf_file = vcf_up,
-                            SNPCall_program = vcfs_software[idx],
-                            GenotypeCall_program = "polyrad",
-                            CountsFrom = vcfs_counts_source[idx],
-                            cross = "F1",
-                            parent1 = dataset.parent1,
-                            parent2 = dataset.parent2,
-                            max_cores = max_cores,
-                            ploidy = ploidy,
-                            prob_thres = prob_thres,
-                            filt_segr = filt_segr,
-                            global_errors = global_errors,
-                            repetitions = repetitions,
-                            sample_size = sample_size,
-                            chromosome = chrom
-                    }
+            if(run_supermassa){
+                call mappoly_sub.MappolyMapsEmp as supermassaPolyMaps {
+                    input:
+                        vcf_file = vcf_up,
+                        SNPCall_program = vcfs_software[idx],
+                        GenotypeCall_program = "supermassa",
+                        CountsFrom = vcfs_counts_source[idx],
+                        cross = "F1",
+                        parent1 = dataset.parent1,
+                        parent2 = dataset.parent2,
+                        max_cores = max_cores,
+                        ploidy = ploidy,
+                        prob_thres = prob_thres,
+                        filt_segr = filt_segr,
+                        global_errors = global_errors,
+                        repetitions = repetitions,
+                        sample_size = sample_size,
+                        chromosome = chrom
                 }
+            }
 
-                if(run_supermassa){
-                    call mappoly_sub.MappolyMapsEmp as supermassaPolyMaps {
-                        input:
-                            vcf_file = vcf_up,
-                            SNPCall_program = vcfs_software[idx],
-                            GenotypeCall_program = "supermassa",
-                            CountsFrom = vcfs_counts_source[idx],
-                            cross = "F1",
-                            parent1 = dataset.parent1,
-                            parent2 = dataset.parent2,
-                            max_cores = max_cores,
-                            ploidy = ploidy,
-                            prob_thres = prob_thres,
-                            filt_segr = filt_segr,
-                            global_errors = global_errors,
-                            repetitions = repetitions,
-                            sample_size = sample_size,
-                            chromosome = chrom
-                    }
-                }
-
-                if(vcfs_counts_source[idx] != "bam" && vcfs_software[idx] != "stacks" && vcfs_software[idx] != "tassel"){
-                    call mappoly_task.MappolyReport {
-                        input:
-                            vcf_file = vcf_up,
-                            SNPCall_program = vcfs_software[idx],
-                            GenotypeCall_program = "SNPCaller",
-                            CountsFrom = vcfs_counts_source[idx],
-                            parent1 = dataset.parent1,
-                            parent2 = dataset.parent2,
-                            max_cores = max_cores,
-                            ploidy = ploidy,
-                            prob_thres = prob_thres,
-                            filt_segr = filt_segr,
-                            global_errors = global_errors,
-                            repetitions = repetitions,
-                            sample_size = sample_size,
-                            chromosome = chrom
-                    }
+            if(vcfs_counts_source[idx] != "bam" && vcfs_software[idx] != "stacks" && vcfs_software[idx] != "tassel"){
+                call mappoly_task.MappolyReport {
+                    input:
+                        vcf_file = vcf_up,
+                        SNPCall_program = vcfs_software[idx],
+                        GenotypeCall_program = "SNPCaller",
+                        CountsFrom = vcfs_counts_source[idx],
+                        parent1 = dataset.parent1,
+                        parent2 = dataset.parent2,
+                        max_cores = max_cores,
+                        ploidy = ploidy,
+                        prob_thres = prob_thres,
+                        filt_segr = filt_segr,
+                        global_errors = global_errors,
+                        repetitions = repetitions,
+                        sample_size = sample_size,
+                        chromosome = chrom
                 }
             }
         }
     }
 
-    # updog, supermassa, polyrad, snpcaller are inside scatter(chrom), so their
-    # outputs are Array[Array[File?]?] — strip the outer optionals, flatten, then
-    # strip the inner optionals to obtain a flat Array[File].
-    Array[File] snpcaller_flat = select_all(flatten(select_all(SNPCallerMapsEmp.tar_gz_report)))
-    if (length(snpcaller_flat) > 0) {
-        Array[File] snpcaller_results = snpcaller_flat
-    }
-    Array[File] updog_flat = select_all(flatten(select_all(updogMaps.tar_gz_report)))
-    if (length(updog_flat) > 0) {
-        Array[File] updog_results = updog_flat
-    }
-    Array[File] supermassa_flat = select_all(flatten(select_all(supermassaMaps.tar_gz_report)))
-    if (length(supermassa_flat) > 0) {
-        Array[File] supermassa_results = supermassa_flat
-    }
-    Array[File] polyrad_flat = select_all(flatten(select_all(polyradMaps.tar_gz_report)))
-    if (length(polyrad_flat) > 0) {
-        Array[File] polyrad_results = polyrad_flat
-    }
-    # gusmap is outside the chromosome scatter — type is unchanged (Array[File?])
-    if(defined(gusmapMapsEmp.tar_gz_report)){
-        Array[File] gusmap_results = select_all(gusmapMapsEmp.tar_gz_report)
-    }
     # poly callers are inside scatter(chrom), so their outputs are Array[Array[File?]?] —
     # strip outer optionals, flatten, then strip inner optionals to get a flat Array[File].
     Array[File] snpcaller_poly_flat = select_all(flatten(select_all(MappolyReport.results)))
@@ -320,15 +191,9 @@ workflow Maps {
     if (length(supermassa_poly_flat) > 0) {
         Array[File] supermassa_poly_results = supermassa_poly_flat
     }
-    
     # Compress files
     call reports.JointAllReports {
         input:
-            SNPCallerMapsEmp = snpcaller_results,
-            updogMaps = updog_results,
-            polyradMaps = polyrad_results,
-            supermassaMaps = supermassa_results,
-            gusmapMapsEmp = gusmap_results,
             SNPCallerPolyMapsEmp = snpcaller_poly_results,
             updogPolyMaps = updog_poly_results,
             polyradPolyMaps = polyrad_poly_results,

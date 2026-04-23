@@ -127,17 +127,45 @@ task MappolyReport {
        bugfix@fix <- bugfix@fix[-idx,]
        bugfix@gt <- bugfix@gt[-idx,]
       }
-      
+
       write.vcf(bugfix, file = "bugfix.vcf")
-      
-      dat <- read_vcf(file = "bugfix.vcf", 
-                      parent.1 = "~{parent1}", 
-                      parent.2 = "~{parent2}", 
-                      verbose = FALSE, 
-                      read.geno.prob = TRUE, 
-                      prob.thres = prob.thres, 
-                      ploidy = ~{ploidy})
-      
+
+      dat <- read_vcf(file = "bugfix.vcf",
+                      parent.1 = "~{parent1}",
+                      parent.2 = "~{parent2}",
+                      verbose = FALSE,
+                      read.geno.prob = TRUE,
+                      prob.thres = prob.thres,
+                      ploidy = ~{ploidy},
+                      filter.non.conforming = FALSE)
+
+      # MAPpoly 0.4.0 only computes chisq.pval inside filter.non.conforming=TRUE;
+      # we skip that filter intentionally (to preserve dat$geno probabilities for
+      # est_full_hmm_with_prior_prob) but still need chisq.pval for filter_segregation.
+      # Use [[]] not $ accessors: the WDL heredoc is unquoted so bash expands $var as shell vars.
+      # Some offspring dosage calls violate Mendelian expectations given the parents
+      # (e.g. dosage=2 progeny from a 0x1 cross — genotyping errors). mrk_chisq_test
+      # crashes on these because seg.exp drops zero-expectation classes then name-lookup
+      # returns NA. Locally scrub those calls to missing (pl+1) only for the chi-square
+      # computation, leaving dat$geno.dose and dat$geno intact.
+      if (is.null(dat[["chisq.pval"]])) {
+        pl <- dat[["ploidy"]]
+        Ds <- array(NA, dim = c(pl + 1, pl + 1, pl + 1))
+        for (i in 0:pl) for (j in 0:pl)
+          Ds[i + 1, j + 1, ] <- segreg_poly(ploidy = pl, dP = i, dQ = j)
+        Dpop <- cbind(dat[["dosage.p1"]], dat[["dosage.p2"]])
+        M <- t(apply(Dpop, 1, function(x) Ds[x[1] + 1, x[2] + 1, ]))
+        dimnames(M) <- list(dat[["mrk.names"]], c(0:pl))
+        allowed <- M != 0
+        geno_scrub <- as.matrix(dat[["geno.dose"]])
+        for (i in seq_len(nrow(geno_scrub))) {
+          bad <- !(geno_scrub[i, ] %in% c(which(allowed[i, ]) - 1, pl + 1))
+          if (any(bad)) geno_scrub[i, bad] <- pl + 1
+        }
+        M <- cbind(M, geno_scrub)
+        dat[["chisq.pval"]] <- apply(M, 1, mappoly:::mrk_chisq_test, ploidy = pl)
+      }
+
       info <- data.frame(dat = paste0("~{SNPCall_program}", "_", "~{GenotypeCall_program}", "_", "~{CountsFrom}"), 
                          step = "raw", 
                          n.markers = dat[["n.mrk"]], 
@@ -175,7 +203,8 @@ task MappolyReport {
         chr_suffix <- paste0("_", "~{default='' chromosome}")
         chr_idx <- which(seq.init[["chrom"]] == "~{default='' chromosome}")
         if(length(chr_idx) > 0) {
-          seq.init <- make_seq_mappoly(seq.init, chr_idx)
+          chr_names <- seq.init[["seq.mrk.names"]][chr_idx]
+          seq.init <- make_seq_mappoly(seq.init, chr_names)
         } else {
           # No markers on this chromosome — downstream size check will skip mapping
           seq.init[["seq.mrk.names"]] <- character(0)
