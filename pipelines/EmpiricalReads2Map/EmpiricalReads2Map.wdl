@@ -51,6 +51,8 @@ workflow EmpiricalReads {
         Array[String] global_errors = ["0.05"]
         Boolean genoprob_error = true
         Array[String] genoprob_global_errors = ["0.05"]
+        Boolean onemap_override = false
+        Boolean mappoly_override = true
     }
 
     # Step 1 — call SNPs on all samples combined
@@ -131,7 +133,9 @@ workflow EmpiricalReads {
                 run_gusmap            = run_gusmap,
                 global_errors         = global_errors,
                 genoprob_error        = genoprob_error,
-                genoprob_global_errors = genoprob_global_errors
+                genoprob_global_errors = genoprob_global_errors,
+                onemap_override       = onemap_override,
+                mappoly_override      = mappoly_override
         }
     }
 
