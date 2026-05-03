@@ -1,0 +1,3 @@
+- [MAPpoly API quirks](mappoly_api_quirks.md) — chisq.pval workaround, PSOCK worker patterns, internal `mrk_chisq_test`
+- [Skip-branch sentinel](mappoly_report_sentinel_branch.md) — bootstrap skip writes `1` to RDS; preserve in any refactor
+- [WDL+R dual implementation](wdl_r_dual_implementation.md) — `tasks/mappoly.wdl` heredoc and `scripts/mappoly_report.R` mirror each other
