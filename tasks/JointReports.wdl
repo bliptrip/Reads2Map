@@ -14,6 +14,7 @@ task JointAllReports{
     Array[File]? supermassaPolyMaps
     Int max_cores
     Int ploidy
+    Boolean mappoly_override = true
   }
 
   Int memory_size = 32000
@@ -25,7 +26,7 @@ task JointAllReports{
       library(stringr)
       library(vroom)
 
-      if(~{ploidy} > 2){
+      if((~{ploidy} > 2) || (~{true="TRUE" false="FALSE" mappoly_override})) {
 
         SNPCallerPolyMapsEmp <- str_split("~{sep=';' SNPCallerPolyMapsEmp}", ";", simplify = TRUE)
         updogPolyMaps        <- str_split("~{sep=';' updogPolyMaps}", ";", simplify = TRUE)

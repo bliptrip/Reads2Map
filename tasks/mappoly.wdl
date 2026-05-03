@@ -16,315 +16,104 @@ task MappolyReport {
     String filt_segr = "TRUE"
     Array[String] global_errors = ["0.05"]
     String? chromosome
+    Boolean build_full_map = true
+    Boolean run_bootstraps = false
+    File mappoly_report_script
   }
 
   Int disk_size = ceil(size(vcf_file, "GiB") * 2)
-  Int memory_size = ceil(size(vcf_file, "MiB") * max_cores + 18000*max_cores)
+  Int memory_size = ceil(size(vcf_file, "MiB") * max_cores + 18000*max_cores + 4000*length(global_errors))
 
   command <<<
-    R --vanilla --no-save <<RSCRIPT
-      library(mappoly)
-      library(parallel)
-      
-      run_tests <- function(seed, s_all, sample_size, dat){
-        set.seed(seed[1])
-        library(mappoly)
-        map.err.p1.idx <- map.err.p2.idx <- map.prob.p1.idx <- map.prob.p2.idx <- 1
-        res.p1 <- res.p2 <- res.prob.p1 <- res.prob.p2 <- NULL
-        map.err.p1 <- map.err.p2 <- map.prob.p1 <- map.prob.p2 <- vector("list", length(seed))
-        while(map.err.p1.idx <= length(seed) | map.err.p2.idx <= length(seed) | map.prob.p1.idx <= length(seed) | map.prob.p2.idx <= length(seed)){  
-          tryCatch({
-            mrk.id<-sample(s_all[["seq.mrk.names"]], sample_size)
-            s<-get_genomic_order(make_seq_mappoly(s_all,mrk.id))
-            
-            ## Parent 1
-            s1<-make_seq_mappoly(s, info.parent = "p1")
-            tpt <- est_pairwise_rf(s1)
-            map <- est_rf_hmm_sequential(input.seq = s1,
-                                         start.set = 5,
-                                         thres.twopt = 10,
-                                         thres.hmm = 10,
-                                         extend.tail = 30,
-                                         info.tail = TRUE,
-                                         twopt = tpt,
-                                         phase.number.limit = 10,
-                                         reestimate.single.ph.configuration = TRUE,
-                                         tol = 10e-2,
-                                         tol.final = 10e-4, 
-                                         verbose = FALSE)
-            map <- filter_map_at_hmm_thres(map, thres.hmm = 0.0001)
-            
-            # Global error
-            if(map.err.p1.idx <= length(seed)){
-               map2 <- est_full_hmm_with_global_error(map, error = 0.05, tol = 10e-3)
-               map3 <- split_and_rephase(map2, gap.threshold = 20, size.rem.cluster = 3, twopt = tpt)
-               map.err.p1[[map.err.p1.idx]] <- est_full_hmm_with_global_error(map3, error = 0.05, tol = 10e-4)
-               x<-summary_maps(list(map.err.p1[[map.err.p1.idx]]))
-               res.p1 <-rbind(res.p1,x[1,])
-               map.err.p1.idx <- map.err.p1.idx + 1
-            }
-            
-            # Prob error
-            if(!is.null(dat[["geno"]]) & map.prob.p1.idx <= length(seed)){
-              map2 <- est_full_hmm_with_prior_prob(map, tol = 10e-3)
-              map3 <- split_and_rephase(map2, gap.threshold = 20, size.rem.cluster = 3, twopt = tpt)
-              map.prob.p1[[map.prob.p1.idx]] <- est_full_hmm_with_prior_prob(map3, tol = 10e-4)
-              x<-summary_maps(list(map.prob.p1[[map.prob.p1.idx]]))
-              res.prob.p1 <-rbind(res.prob.p1,x[1,])
-              map.prob.p1.idx <- map.prob.p1.idx + 1          
-            } else if (is.null(dat[["geno"]])) map.prob.p1.idx <- map.prob.p1.idx + 1
-            
-            # Parent 2
-            s2<-make_seq_mappoly(s, info.parent = "p2")
-            tpt <- est_pairwise_rf(s2)
-            map <- est_rf_hmm_sequential(input.seq = s2,
-                                         start.set = 5,
-                                         thres.twopt = 10,
-                                         thres.hmm = 10,
-                                         extend.tail = 30,
-                                         info.tail = TRUE,
-                                         twopt = tpt,
-                                         phase.number.limit = 10,
-                                         reestimate.single.ph.configuration = TRUE,
-                                         tol = 10e-2,
-                                         tol.final = 10e-4, 
-                                         verbose = FALSE)
-            map <- filter_map_at_hmm_thres(map, thres.hmm = 0.0001)
-            
-            # Global error
-            if(map.err.p2.idx <= length(seed)){
-               map2 <- est_full_hmm_with_global_error(map, error = 0.05, tol = 10e-3)
-               map3 <- split_and_rephase(map2, gap.threshold = 20, size.rem.cluster = 3, twopt = tpt)
-               map.err.p2[[map.err.p2.idx]] <- est_full_hmm_with_global_error(map3, error = 0.05, tol = 10e-4)
-               x<-summary_maps(list(map.err.p2[[map.err.p2.idx]]))
-               res.p2<-rbind(res.p2,x[1,])
-               map.err.p2.idx <- map.err.p2.idx + 1            
-            }
-            
-            # Prob error
-            if(!is.null(dat[["geno"]]) & map.prob.p2.idx <= length(seed)){
-              map2 <- est_full_hmm_with_prior_prob(map, tol = 10e-3)
-              map3 <- split_and_rephase(map2, gap.threshold = 20, size.rem.cluster = 3, twopt = tpt)
-              map.prob.p2[[map.prob.p2.idx]] <- est_full_hmm_with_prior_prob(map3, tol = 10e-4)
-              x<-summary_maps(list(map.prob.p2[[map.prob.p2.idx]]))
-              res.prob.p2 <-rbind(res.prob.p2,x[1,])
-              map.prob.p2.idx <- map.prob.p2.idx + 1          
-            } else if (is.null(dat[["geno"]])) map.prob.p2.idx <- map.prob.p2.idx + 1
-          }, error=function(e){})
-        }
-        return(list(map.err.p1, map.err.p2, map.prob.p1, map.prob.p2, 
-                    res.p1, res.p2, res.prob.p1, res.prob.p2))
-      }
-      
-      if("~{GenotypeCall_program}" == "supermassa") 
-        prob.thres = ~{prob_thres} - ~{prob_thres}*0.3 else prob.thres = ~{prob_thres}
+    set -euo pipefail
+    cat > /tmp/mappoly_run.R << 'REOF'
+source("~{mappoly_report_script}")
 
-      library(vcfR)
-      bugfix <- read.vcfR("~{vcf_file}")
-      idx <- which(bugfix@fix[,1] == "NA")
+vcf_file             <- "~{vcf_file}"
+SNPCall_program      <- "~{SNPCall_program}"
+GenotypeCall_program <- "~{GenotypeCall_program}"
+CountsFrom           <- "~{CountsFrom}"
+parent1              <- "~{parent1}"
+parent2              <- "~{parent2}"
+prob_thres           <- ~{prob_thres}
+repetitions          <- ~{repetitions}L
+sample_size          <- ~{sample_size}L
+max_cores            <- ~{max_cores}L
+ploidy               <- ~{ploidy}L
+filt_segr            <- "~{filt_segr}"
+global_errors        <- unlist(strsplit("~{sep=',' global_errors}", ","))
+chromosome           <- "~{default="" chromosome}"
+build_full_map       <- ~{if build_full_map then "TRUE" else "FALSE"}
+run_bootstraps       <- ~{if run_bootstraps then "TRUE" else "FALSE"}
 
-      if(length(idx) > 0){
-       bugfix@fix <- bugfix@fix[-idx,]
-       bugfix@gt <- bugfix@gt[-idx,]
-      }
+pre <- mappoly_preprocess(
+  vcf_file             = vcf_file,
+  SNPCall_program      = SNPCall_program,
+  GenotypeCall_program = GenotypeCall_program,
+  CountsFrom           = CountsFrom,
+  parent1              = parent1,
+  parent2              = parent2,
+  prob_thres           = prob_thres,
+  ploidy               = ploidy,
+  filt_segr            = filt_segr,
+  chromosome           = chromosome,
+  global_errors        = global_errors
+)
 
-      write.vcf(bugfix, file = "bugfix.vcf")
+if (run_bootstraps) {
+  boot <- mappoly_bootstrap(
+    seq.init         = pre[["seq.init"]],
+    dat              = pre[["dat"]],
+    info             = pre[["info"]],
+    data_label       = pre[["data_label"]],
+    chr_suffix       = pre[["chr_suffix"]],
+    sample_size      = sample_size,
+    repetitions      = repetitions,
+    max_cores        = max_cores,
+    map_parentals    = pre[["map_parentals"]],
+    maps_init        = pre[["maps_init"]],
+    maps_init_global = pre[["maps_init_global"]],
+    global_errors    = global_errors
+  )
+} else {
+  boot <- list(
+    boot.refactored = pre[["maps_init"]],
+    summaries       = 1,
+    info            = pre[["info"]],
+    dat             = pre[["dat"]],
+    mat             = NULL,
+    ran_bootstrap   = FALSE
+  )
+}
 
-      dat <- read_vcf(file = "bugfix.vcf",
-                      parent.1 = "~{parent1}",
-                      parent.2 = "~{parent2}",
-                      verbose = FALSE,
-                      read.geno.prob = TRUE,
-                      prob.thres = prob.thres,
-                      ploidy = ~{ploidy},
-                      filter.non.conforming = FALSE)
+full <- mappoly_full_map(
+  build_full_map   = build_full_map,
+  seq.init         = pre[["seq.init"]],
+  dat              = pre[["dat"]],
+  data_label       = pre[["data_label"]],
+  chr_suffix       = pre[["chr_suffix"]],
+  map_parentals    = pre[["map_parentals"]],
+  maps_init        = pre[["maps_init"]],
+  maps_init_global = pre[["maps_init_global"]],
+  global_errors    = global_errors
+)
 
-      # MAPpoly 0.4.0 only computes chisq.pval inside filter.non.conforming=TRUE;
-      # we skip that filter intentionally (to preserve dat$geno probabilities for
-      # est_full_hmm_with_prior_prob) but still need chisq.pval for filter_segregation.
-      # Use [[]] not $ accessors: the WDL heredoc is unquoted so bash expands $var as shell vars.
-      # Some offspring dosage calls violate Mendelian expectations given the parents
-      # (e.g. dosage=2 progeny from a 0x1 cross — genotyping errors). mrk_chisq_test
-      # crashes on these because seg.exp drops zero-expectation classes then name-lookup
-      # returns NA. Locally scrub those calls to missing (pl+1) only for the chi-square
-      # computation, leaving dat$geno.dose and dat$geno intact.
-      if (is.null(dat[["chisq.pval"]])) {
-        pl <- dat[["ploidy"]]
-        Ds <- array(NA, dim = c(pl + 1, pl + 1, pl + 1))
-        for (i in 0:pl) for (j in 0:pl)
-          Ds[i + 1, j + 1, ] <- segreg_poly(ploidy = pl, dP = i, dQ = j)
-        Dpop <- cbind(dat[["dosage.p1"]], dat[["dosage.p2"]])
-        M <- t(apply(Dpop, 1, function(x) Ds[x[1] + 1, x[2] + 1, ]))
-        dimnames(M) <- list(dat[["mrk.names"]], c(0:pl))
-        allowed <- M != 0
-        geno_scrub <- as.matrix(dat[["geno.dose"]])
-        for (i in seq_len(nrow(geno_scrub))) {
-          bad <- !(geno_scrub[i, ] %in% c(which(allowed[i, ]) - 1, pl + 1))
-          if (any(bad)) geno_scrub[i, bad] <- pl + 1
-        }
-        M <- cbind(M, geno_scrub)
-        dat[["chisq.pval"]] <- apply(M, 1, mappoly:::mrk_chisq_test, ploidy = pl)
-      }
-
-      info <- data.frame(dat = paste0("~{SNPCall_program}", "_", "~{GenotypeCall_program}", "_", "~{CountsFrom}"), 
-                         step = "raw", 
-                         n.markers = dat[["n.mrk"]], 
-                         mis.perc = round((sum(dat[["geno.dose"]] == dat[["ploidy"]]+1)/(nrow(dat[["geno.dose"]])*ncol(dat[["geno.dose"]])))*100,2),
-                         n.redundant = round(100*(nrow(dat[["elim.correspondence"]])/(length(dat[["kept"]])+nrow(dat[["elim.correspondence"]]))),2), 
-                         n.ind = dat[["n.ind"]])
-      
-      dat <- filter_missing(input.data = dat, type = "marker", 
-                            filter.thres = 0.25, inter = FALSE)
-      
-      info_temp <- data.frame(dat = paste0("~{SNPCall_program}", "_", "~{GenotypeCall_program}", "_", "~{CountsFrom}"), 
-                              step = "miss filtered", 
-                              n.markers = dat[["n.mrk"]], 
-                              mis.perc = round((sum(dat[["geno.dose"]] == dat[["ploidy"]]+1)/(nrow(dat[["geno.dose"]])*ncol(dat[["geno.dose"]])))*100,2),
-                              n.redundant = round(100*(nrow(dat[["elim.correspondence"]])/(length(dat[["kept"]])+nrow(dat[["elim.correspondence"]]))),2), 
-                              n.ind = dat[["n.ind"]])
-      
-      info <- rbind(info, info_temp)
-      
-      
-      if(as.logical("~{filt_segr}")){
-        pval.bonf <- 0.05/dat[["n.mrk"]]
-        mrks.chi.filt <- filter_segregation(dat,
-                                            chisq.pval.thres =  pval.bonf,
-                                            inter = FALSE)
-
-        seq.init <- make_seq_mappoly(mrks.chi.filt)
-      } else {
-        seq.init <- make_seq_mappoly(dat, "all")
-      }
-
-      # Filter to a specific chromosome when requested
-      chr_suffix <- ""
-      if("~{default='' chromosome}" != "") {
-        chr_suffix <- paste0("_", "~{default='' chromosome}")
-        chr_idx <- which(seq.init[["chrom"]] == "~{default='' chromosome}")
-        if(length(chr_idx) > 0) {
-          chr_names <- seq.init[["seq.mrk.names"]][chr_idx]
-          seq.init <- make_seq_mappoly(seq.init, chr_names)
-        } else {
-          # No markers on this chromosome — downstream size check will skip mapping
-          seq.init[["seq.mrk.names"]] <- character(0)
-        }
-      }
-
-      info_temp <- data.frame(dat = paste0("~{SNPCall_program}", "_", "~{GenotypeCall_program}", "_", "~{CountsFrom}"), 
-                              step = "segr filtered", 
-                              n.markers = length(seq.init[["seq.mrk.names"]]), 
-                              mis.perc = round((sum(dat[["geno.dose"]][which(rownames(dat[["geno.dose"]]) %in% seq.init[["seq.mrk.names"]]),] == dat[["ploidy"]]+1)/(ncol(dat[["geno.dose"]])*length(seq.init[["seq.mrk.names"]])))*100,2), 
-                              n.redundant = round(100*(nrow(dat[["elim.correspondence"]])/(length(dat[["kept"]])+nrow(dat[["elim.correspondence"]]))),2), 
-                              n.ind = dat[["n.ind"]])
-      
-      info <- rbind(info, info_temp)
-      
-      sp1<-make_seq_mappoly(seq.init, info.parent = "p1")
-      
-      info_temp <- data.frame(dat = paste0("~{SNPCall_program}", "_", "~{GenotypeCall_program}", "_", "~{CountsFrom}"), 
-                              step = "p1", 
-                              n.markers = length(sp1[["seq.mrk.names"]]), 
-                              mis.perc = round((sum(dat[["geno.dose"]][which(rownames(dat[["geno.dose"]]) %in% sp1[["seq.mrk.names"]]),] == dat[["ploidy"]]+1)/(ncol(dat[["geno.dose"]])*length(sp1[["seq.mrk.names"]])))*100,2), 
-                              n.redundant = round(100*(nrow(dat[["elim.correspondence"]])/(length(dat[["kept"]])+nrow(dat[["elim.correspondence"]]))),2), 
-                              n.ind = dat[["n.ind"]])
-      info <- rbind(info, info_temp)
-      
-      sp2<-make_seq_mappoly(seq.init, info.parent = "p2")
-      
-      info_temp <- data.frame(dat = paste0("~{SNPCall_program}", "_", "~{GenotypeCall_program}", "_", "~{CountsFrom}"), 
-                              step = "p2", 
-                              n.markers = length(sp2[["seq.mrk.names"]]), 
-                              mis.perc = round((sum(dat[["geno.dose"]][which(rownames(dat[["geno.dose"]]) %in% sp2[["seq.mrk.names"]]),] == dat[["ploidy"]]+1)/(ncol(dat[["geno.dose"]])*length(sp2[["seq.mrk.names"]])))*100,2), 
-                              n.redundant = round(100*(nrow(dat[["elim.correspondence"]])/(length(dat[["kept"]])+nrow(dat[["elim.correspondence"]]))),2), 
-                              n.ind = dat[["n.ind"]])
-      info <- rbind(info, info_temp)
-      
-      # Estimate two-point recombination fraction
-      tpt <- est_pairwise_rf(input.seq = seq.init, ncpus = ~{max_cores})
-      mat <- rf_list_to_matrix(input.twopt = tpt)
-      
-      if(length(seq.init[["seq.mrk.names"]]) > ~{sample_size}) {
-       sample_size <- ~{sample_size}
-       seeds <- split(1:~{repetitions}, rep(1:~{max_cores}, each=~{repetitions}/~{max_cores}))
-      
-       clust <- makeCluster(~{max_cores})
-       clusterExport(clust, c("seq.init", "sample_size", "dat", "run_tests"))
-       results <- parLapply(clust, seeds, function(x) run_tests(seed = x, s_all = seq.init, 
-                                                               sample_size = sample_size, dat = dat))
-       stopCluster(clust)
-      
-       map.err.p1 <- sapply(results, "[[", 1)
-       idx <- sapply(map.err.p1, is.null)
-       map.err.p1 <- map.err.p1[which(!idx)]
-      
-       map.err.p2 <- sapply(results, "[[", 2)
-       idx <- sapply(map.err.p2, is.null)
-       map.err.p2 <- map.err.p2[which(!idx)]
-      
-       if(!is.null(dat[["geno"]])){
-         map.prob.p1 <- sapply(results, "[[", 3)
-         idx <- sapply(map.prob.p1, is.null)
-         map.prob.p1 <- map.prob.p1[which(!idx)]
-        
-         map.prob.p2 <- sapply(results, "[[", 4)
-         idx <- sapply(map.prob.p2, is.null)
-         map.prob.p2 <- map.prob.p2[which(!idx)]
-        
-         maps <- list(map.err.p1 = map.err.p1, 
-                     map.err.p2 = map.err.p2, 
-                     map.prob.p1 = map.prob.p1, 
-                     map.prob.p2 = map.prob.p2)
-       } else {
-         maps <- list(map.err.p1 = map.err.p1, 
-                     map.err.p2 = map.err.p2) 
-       }
-      
-       res.p1 <- lapply(results, "[[", 5)
-       res.p1 <- do.call(rbind, res.p1)
-       res.p1[["map"]] <- "error.p1"
-      
-       res.p2 <- lapply(results, "[[", 6)
-       res.p2 <- do.call(rbind, res.p2)
-       res.p2[["map"]] <- "error.p2"
-      
-       if(!is.null(dat[["geno"]])){
-         res.prob.p1 <- lapply(results, "[[", 7)
-         res.prob.p1 <- do.call(rbind, res.prob.p1)
-         res.prob.p1[["map"]] <- "prob.p1"
-        
-         res.prob.p2 <- lapply(results, "[[", 8)
-         res.prob.p2 <- do.call(rbind, res.prob.p2)
-         res.prob.p2[["map"]] <- "prob.p2"
-         summaries <- rbind(res.p1, res.p2, res.prob.p1, res.prob.p2)
-       } else summaries <- rbind(res.p1, res.p2)
-      
-       summaries[["data"]] <- "~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}"
-      } else {
-       summaries <- 1
-       info <- 1
-       dat <- 1
-       mat <- 1
-       maps <- 1
-      }
-
-      saveRDS(summaries, file= paste0("~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}", chr_suffix, "_summaries.rds"))
-      saveRDS(info, file=paste0("~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}", chr_suffix, "_info.rds"))
-      saveRDS(dat, file= paste0("~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}", chr_suffix, "_dat.rds"))
-      saveRDS(mat, file=paste0("~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}", chr_suffix, "_mat2.rds"))
-      saveRDS(maps, file=paste0("~{SNPCall_program}_~{GenotypeCall_program}_~{CountsFrom}", chr_suffix, "_maps.rds"))
-
-      system("mkdir results")
-      system("mv *.rds  results")
-
-      system(paste0("tar -czvf ", "~{SNPCall_program}", "_", "~{GenotypeCall_program}", "_", "~{CountsFrom}", chr_suffix, "_poly_results.tar.gz results"))
-
-    RSCRIPT
+export_mappoly_results(
+  seq.init         = pre[["seq.init"]],
+  max_cores        = max_cores,
+  data_label       = pre[["data_label"]],
+  chr_suffix       = pre[["chr_suffix"]],
+  bootstrap_result = boot,
+  full_map         = full[["full_map"]],
+  output_dir       = "."
+)
+REOF
+    Rscript /tmp/mappoly_run.R
   >>>
 
   runtime {
-    docker:"cristaniguti/reads2map:0.1.0"
-    singularity: "docker://cristaniguti/reads2map:0.1.0"
+    docker:"bliptrip/reads2map:0.1.1"
+    singularity: "docker://bliptrip/reads2map:0.1.1"
     cpu: max_cores
     # Cloud
     memory:"~{memory_size} MiB"

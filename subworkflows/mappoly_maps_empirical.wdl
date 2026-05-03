@@ -21,6 +21,9 @@ workflow MappolyMapsEmp {
     String? filt_segr
     Array[String] global_errors
     String? chromosome
+    Boolean build_full_map = true
+    Boolean run_bootstraps = false
+    File mappoly_report_script
   }
 
   call utilsR.ReGenotyping {
@@ -51,7 +54,10 @@ workflow MappolyMapsEmp {
       global_errors = global_errors,
       repetitions = repetitions,
       sample_size = sample_size,
-      chromosome = chromosome
+      chromosome = chromosome,
+      build_full_map = build_full_map,
+      run_bootstraps = run_bootstraps,
+      mappoly_report_script = mappoly_report_script
   }
 
    output {
