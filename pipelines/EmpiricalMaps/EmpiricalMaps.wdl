@@ -1,17 +1,17 @@
 version 1.0
 
-import "../../structs/empirical_maps_structs.wdl"
-import "../../structs/population_structs.wdl"
+import "structs/empirical_maps_structs.wdl"
+import "structs/population_structs.wdl"
 
-import "../../tasks/utils.wdl" as utils
-import "../../tasks/utilsR.wdl" as utilsR
-import "../../tasks/JointReports.wdl" as reports
-import "../../tasks/mappoly.wdl" as mappoly_task
+import "tasks/utils.wdl" as utils
+import "tasks/utilsR.wdl" as utilsR
+import "tasks/JointReports.wdl" as reports
+import "tasks/mappoly.wdl" as mappoly_task
 
-import "../../subworkflows/genotyping_empirical.wdl" as genotyping
-import "../../subworkflows/snpcaller_maps_empirical.wdl" as snpcaller
-import "../../subworkflows/gusmap_maps_empirical.wdl" as gusmap
-import "../../subworkflows/mappoly_maps_empirical.wdl" as mappoly_sub
+import "subworkflows/genotyping_empirical.wdl" as genotyping
+import "subworkflows/snpcaller_maps_empirical.wdl" as snpcaller
+import "subworkflows/gusmap_maps_empirical.wdl" as gusmap
+import "subworkflows/mappoly_maps_empirical.wdl" as mappoly_sub
 
 workflow Maps {
     input {
@@ -30,6 +30,8 @@ workflow Maps {
         String? genotype_dp_filter
         String? filters_include
         Int info_dp_sd_multiplier = 2
+        File? exclude_samples
+        File? exclude_positions
         Int max_cores
         Int ploidy
         Float prob_thres = 0.8
@@ -40,9 +42,13 @@ workflow Maps {
         Int repetitions = 100
         Int sample_size = 30
         Boolean mappoly_override = true
+        Boolean run_mappoly_snpcaller = true
+        Boolean build_full_map = true
+        Boolean run_bootstraps = false
+        File mappoly_report_script
     }
 
-    if (defined(genotype_dp_filter) || defined(filters_include)) {
+    if (defined(genotype_dp_filter) || defined(filters_include) || defined(exclude_samples) || defined(exclude_positions)) {
         call utils.ApplyRandomFiltersArray {
             input:
                 vcfs = vcfs,
@@ -50,8 +56,10 @@ workflow Maps {
                 vcfs_Counts_source = vcfs_counts_source,
                 vcfs_GenoCall_software = range(length(vcfs_software)),
                 genotype_dp_filter    = genotype_dp_filter,
-                filters_include      = filters_include,
-                info_dp_sd_multiplier = info_dp_sd_multiplier
+                filters_include       = filters_include,
+                info_dp_sd_multiplier = info_dp_sd_multiplier,
+                exclude_samples       = exclude_samples,
+                exclude_positions     = exclude_positions
         }
     }
 
@@ -194,7 +202,7 @@ workflow Maps {
         }
 
         # Polyploid path: MAPpoly
-        if((ploidy > 2) && (mappoly_override == true)) {
+        if((ploidy > 2) || (mappoly_override == true)) {
             scatter (chrom in chromosomes_to_use) {
                 if(run_updog) {
                     call mappoly_sub.MappolyMapsEmp as updogPolyMaps {
@@ -213,7 +221,10 @@ workflow Maps {
                             global_errors = global_errors,
                             repetitions = repetitions,
                             sample_size = sample_size,
-                            chromosome = chrom
+                            chromosome = chrom,
+                            build_full_map = build_full_map,
+                            run_bootstraps = run_bootstraps,
+                            mappoly_report_script = mappoly_report_script
                     }
                 }
 
@@ -234,7 +245,10 @@ workflow Maps {
                             global_errors = global_errors,
                             repetitions = repetitions,
                             sample_size = sample_size,
-                            chromosome = chrom
+                            chromosome = chrom,
+                            build_full_map = build_full_map,
+                            run_bootstraps = run_bootstraps,
+                            mappoly_report_script = mappoly_report_script
                     }
                 }
 
@@ -255,11 +269,14 @@ workflow Maps {
                             global_errors = global_errors,
                             repetitions = repetitions,
                             sample_size = sample_size,
-                            chromosome = chrom
+                            chromosome = chrom,
+                            build_full_map = build_full_map,
+                            run_bootstraps = run_bootstraps,
+                            mappoly_report_script = mappoly_report_script
                     }
                 }
 
-                if(vcfs_counts_source[idx] != "bam" && vcfs_software[idx] != "stacks" && vcfs_software[idx] != "tassel"){
+                if(run_mappoly_snpcaller && vcfs_counts_source[idx] != "bam" && vcfs_software[idx] != "stacks" && vcfs_software[idx] != "tassel"){
                     call mappoly_task.MappolyReport {
                         input:
                             vcf_file = vcf_up,
@@ -275,7 +292,10 @@ workflow Maps {
                             global_errors = global_errors,
                             repetitions = repetitions,
                             sample_size = sample_size,
-                            chromosome = chrom
+                            chromosome = chrom,
+                            build_full_map = build_full_map,
+                            run_bootstraps = run_bootstraps,
+                            mappoly_report_script = mappoly_report_script
                     }
                 }
             }
@@ -338,7 +358,8 @@ workflow Maps {
             polyradPolyMaps = polyrad_poly_results,
             supermassaPolyMaps = supermassa_poly_results,
             max_cores = max_cores,
-            ploidy = ploidy
+            ploidy = ploidy,
+            mappoly_override = mappoly_override
     }
 
     output {

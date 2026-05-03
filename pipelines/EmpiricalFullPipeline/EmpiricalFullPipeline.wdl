@@ -64,6 +64,8 @@ workflow EmpiricalFullPipeline {
         String? genotype_dp_filter
         String? filters_include
         Int info_dp_sd_multiplier = 2
+        File? exclude_samples
+        File? exclude_positions
         Float?  prob_thres
         String? filt_segr
         Boolean filter_noninfo         = false
@@ -74,6 +76,10 @@ workflow EmpiricalFullPipeline {
         Array[String] global_errors    = ["0.05"]
         Boolean genoprob_error         = true
         Array[String] genoprob_global_errors = ["0.05"]
+        Boolean run_mappoly_snpcaller  = true
+        Boolean build_full_map         = true
+        Boolean run_bootstraps         = false
+        File    mappoly_report_script
     }
 
     # Step 1 — demultiplex raw FASTQs and trim adapters (runs in parallel
@@ -130,6 +136,8 @@ workflow EmpiricalFullPipeline {
             genotype_dp_filter     = genotype_dp_filter,
             filters_include        = filters_include,
             info_dp_sd_multiplier  = info_dp_sd_multiplier,
+            exclude_samples        = exclude_samples,
+            exclude_positions      = exclude_positions,
             prob_thres             = prob_thres,
             filt_segr              = filt_segr,
             filter_noninfo         = filter_noninfo,
@@ -139,7 +147,11 @@ workflow EmpiricalFullPipeline {
             run_gusmap             = run_gusmap,
             global_errors          = global_errors,
             genoprob_error         = genoprob_error,
-            genoprob_global_errors = genoprob_global_errors
+            genoprob_global_errors = genoprob_global_errors,
+            run_mappoly_snpcaller  = run_mappoly_snpcaller,
+            build_full_map         = build_full_map,
+            run_bootstraps         = run_bootstraps,
+            mappoly_report_script  = mappoly_report_script
     }
 
     output {

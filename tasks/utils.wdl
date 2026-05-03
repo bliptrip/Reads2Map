@@ -173,6 +173,13 @@ task ApplyRandomFiltersArray {
     # per-VCF. Defaults to 2 (removes ~2% of sites at the right tail).
     # Set to 0 to disable.
     Int info_dp_sd_multiplier = 2
+    # Sample exclusion: plain-text file with one sample ID per line.
+    # These samples are removed before any filtering, and F_MISSING/AC/AN/AF
+    # are recalculated on the reduced sample set.
+    File? exclude_samples
+    # Position exclusion: tab-delimited CHROM<tab>POS file (1-based).
+    # Sites at these positions are dropped at the final filter step.
+    File? exclude_positions
     String? chromosome
   }
 
@@ -190,6 +197,8 @@ task ApplyRandomFiltersArray {
       filter_genotype="~{default="" genotype_dp_filter}"
       filter_include="~{default="" filters_include}"
       dp_mult=~{info_dp_sd_multiplier}
+      excl_samples="~{default="" exclude_samples}"
+      excl_positions="~{default="" exclude_positions}"
 
       for index in ${!vcfs[*]}; do
           if [[ ${vcfs[$index]} != *.gz ]]; then
@@ -199,6 +208,17 @@ task ApplyRandomFiltersArray {
             cp ${vcfs[$index]} temp.vcf.gz
           fi
           tabix -p vcf temp.vcf.gz
+
+          # Step 0: drop excluded samples, then recalculate per-site INFO tags
+          # (F_MISSING, AC, AN, AF) so that filters_include expressions reflect
+          # the reduced sample set.
+          if [ -n "$excl_samples" ]; then
+            bcftools view -S "^${excl_samples}" temp.vcf.gz -Oz -o step0.vcf.gz
+            tabix -p vcf step0.vcf.gz
+            bcftools +fill-tags step0.vcf.gz -Oz -o temp.vcf.gz -- -t F_MISSING,AC,AN,AF
+            tabix -p vcf temp.vcf.gz
+            rm step0.vcf.gz step0.vcf.gz.tbi
+          fi
 
           # Step 1: set individual genotypes failing the per-genotype filter to
           # missing (./.) so that F_MISSING is recalculated correctly in step 2.
@@ -257,9 +277,14 @@ task ApplyRandomFiltersArray {
             full_filter="${full_filter:+${full_filter} & }${dp_expr}"
           fi
 
-          # Step 3: drop sites that fail the site-level include filter.
+          # Step 3: drop sites that fail the site-level include filter and
+          # remove any user-specified positions.
           outname="vcf_filt_${vcfs_snp_software[$index]}_${vcfs_counts_source[$index]}_${vcfs_geno_software[$index]}.vcf"
-          bcftools view ${full_filter:+-i "$full_filter"} step1.vcf.gz -o "$outname"
+          excl_pos_arg=""
+          if [ -n "$excl_positions" ]; then
+            excl_pos_arg="-T ^${excl_positions}"
+          fi
+          bcftools view ${excl_pos_arg} ${full_filter:+-i "$full_filter"} step1.vcf.gz -o "$outname"
           bgzip "$outname"
           rm step1.vcf.gz step1.vcf.gz.tbi
           echo "${outname}.gz" >> outputs.txt

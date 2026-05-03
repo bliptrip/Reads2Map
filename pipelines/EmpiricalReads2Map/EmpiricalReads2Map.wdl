@@ -41,6 +41,8 @@ workflow EmpiricalReads {
         String? genotype_dp_filter
         String? filters_include
         Int info_dp_sd_multiplier = 2
+        File? exclude_samples
+        File? exclude_positions
         Float? prob_thres
         String? filt_segr
         Boolean filter_noninfo = false
@@ -53,6 +55,10 @@ workflow EmpiricalReads {
         Array[String] genoprob_global_errors = ["0.05"]
         Boolean onemap_override = false
         Boolean mappoly_override = true
+        Boolean run_mappoly_snpcaller = true
+        Boolean build_full_map = true
+        Boolean run_bootstraps = false
+        File mappoly_report_script
     }
 
     # Step 1 — call SNPs on all samples combined
@@ -120,8 +126,10 @@ workflow EmpiricalReads {
                 gatk_mchap         = gatk_mchap,
                 filter_noninfo     = filter_noninfo,
                 genotype_dp_filter    = genotype_dp_filter,
-                filters_include      = filters_include,
+                filters_include       = filters_include,
                 info_dp_sd_multiplier = info_dp_sd_multiplier,
+                exclude_samples       = exclude_samples,
+                exclude_positions     = exclude_positions,
                 max_cores          = max_cores,
                 replaceADbyMissing    = replaceADbyMissing,
                 ploidy                = ploidy,
@@ -135,7 +143,11 @@ workflow EmpiricalReads {
                 genoprob_error        = genoprob_error,
                 genoprob_global_errors = genoprob_global_errors,
                 onemap_override       = onemap_override,
-                mappoly_override      = mappoly_override
+                mappoly_override      = mappoly_override,
+                run_mappoly_snpcaller = run_mappoly_snpcaller,
+                build_full_map        = build_full_map,
+                run_bootstraps        = run_bootstraps,
+                mappoly_report_script = mappoly_report_script
         }
     }
 
